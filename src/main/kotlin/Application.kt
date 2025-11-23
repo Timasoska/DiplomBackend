@@ -12,8 +12,10 @@ import kotlinx.coroutines.launch // <--- ВАЖНО
 import org.example.data.db.Disciplines
 import org.example.data.db.dbQuery
 import org.example.di.appModule
+import org.example.features.auth.authRouting
 import org.example.features.content.contentRouting
 import org.example.plugins.configureDatabases
+import org.example.plugins.configureSecurity
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll
 import org.koin.ktor.plugin.Koin
@@ -35,6 +37,8 @@ fun Application.module() {
 
     // 3. Подключение БД
     configureDatabases()
+
+    configureSecurity()
 
     // 4. Заполнение базы (исправлен синтаксис запуска)
     launch {
@@ -62,5 +66,6 @@ fun Application.module() {
     // 5. Роутинг
     routing {
         contentRouting()
+        authRouting()
     }
 }
