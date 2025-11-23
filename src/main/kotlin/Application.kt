@@ -1,15 +1,15 @@
 package org.example
 
-// 1. Добавили правильный импорт для ContentNegotiation
-import io.ktor.server.plugins.contentnegotiation.* // <--- ВАЖНО
+import io.ktor.server.plugins.contentnegotiation.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.routing.*
-// 2. Добавили импорт для launch
-import kotlinx.coroutines.launch // <--- ВАЖНО
+import kotlinx.coroutines.launch
 
-// Твои импорты (убедись, что пакеты совпадают с твоей структурой папок)
+// Импорты таблиц
 import org.example.data.db.Disciplines
+import org.example.data.db.Lectures
+import org.example.data.db.Topics
 import org.example.data.db.dbQuery
 import org.example.di.appModule
 import org.example.features.auth.authRouting
@@ -26,7 +26,7 @@ fun main(args: Array<String>) {
 
 fun Application.module() {
     // 1. Настройка JSON
-    install(ContentNegotiation) { // <--- Теперь ошибка уйдет
+    install(ContentNegotiation) {
         json()
     }
 
@@ -40,25 +40,37 @@ fun Application.module() {
 
     configureSecurity()
 
-    // 4. Заполнение базы (исправлен синтаксис запуска)
+    // 4. Заполнение базы
     launch {
         dbQuery {
-            // Проверка: если таблица пустая, заполняем
             if (Disciplines.selectAll().empty()) {
+                // --- 1. Создаем Дисциплину (Уголовное право) ---
+                // Используем Disciplines.name вместо просто name
+                val criminalLawId = Disciplines.insert {
+                    it[Disciplines.name] = "Уголовное право"
+                    it[Disciplines.description] = "Изучение преступлений и наказаний"
+                } get Disciplines.id
+
+                // --- 2. Создаем вторую дисциплину ---
                 Disciplines.insert {
-                    it[name] = "Уголовное право"
-                    it[description] = "Изучение преступлений и наказаний"
+                    it[Disciplines.name] = "Гражданское право"
+                    it[Disciplines.description] = "Регулирование отношений между гражданами"
                 }
-                Disciplines.insert {
-                    it[name] = "Гражданское право"
-                    it[description] = "Регулирование отношений между гражданами"
+
+                // --- 3. Создаем Тему (привязываем к criminalLawId) ---
+                val topicId = Topics.insert {
+                    it[Topics.name] = "Понятие преступления"
+                    it[Topics.disciplineId] = criminalLawId
+                } get Topics.id
+
+                // --- 4. Создаем Лекцию (привязываем к topicId) ---
+                Lectures.insert {
+                    it[Lectures.title] = "Что такое преступление?"
+                    it[Lectures.content] = "Преступление — это виновно совершенное общественно опасное деяние, запрещенное настоящим Кодексом под угрозой наказания."
+                    it[Lectures.topicId] = topicId
                 }
-                Disciplines.insert {
-                    it[name] = "Административное право"
-                    it[description] = "Управление и взаимодействие с государством"
-                }
-                // Можно добавить лог, чтобы видеть в консоли, что сработало
-                println("База данных успешно инициализирована тестовыми данными!")
+
+                println("✅ База данных успешно заполнена контентом!")
             }
         }
     }
