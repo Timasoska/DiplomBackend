@@ -27,4 +27,6 @@ val appModule = module {
     factory { SearchUseCase(get()) }
     factory { GetTestUseCase(get()) }
     factory { SubmitTestUseCase(get()) }
+    factory { GetRecommendationsUseCase(get()) }
+    factory { GetProgressUseCase(get()) }
 }

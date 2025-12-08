@@ -7,11 +7,28 @@ import io.ktor.server.auth.jwt.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import kotlinx.serialization.Serializable // <--- Не забудь импорт
 import org.example.domain.model.AnswerDto
 import org.example.domain.model.SubmitAnswerRequest
 import org.example.domain.usecase.GetTestUseCase
 import org.example.domain.usecase.SubmitTestUseCase
 import org.koin.ktor.ext.inject
+
+// --- DTO классы для отправки теста клиенту ---
+@Serializable
+data class QuestionDto(
+    val id: Int,
+    val text: String,
+    val answers: List<AnswerDto>
+)
+
+@Serializable
+data class TestDto(
+    val id: Int,
+    val title: String,
+    val questions: List<QuestionDto>
+)
+// ---------------------------------------------
 
 fun Route.testingRouting() {
     val getTestUseCase by inject<GetTestUseCase>()
@@ -25,22 +42,17 @@ fun Route.testingRouting() {
             val test = getTestUseCase(topicId)
 
             if (test != null) {
-                // ВАЖНО: Преобразуем ответы в DTO, чтобы не отправить isCorrect=true
-                val safeQuestions = test.questions.map { q ->
-                    // Копируем вопрос, подменяя список ответов на безопасный (Any/DTO хак для JSON)
-                    // Для простоты JSON сериализатора, лучше просто отдадим структуру,
-                    // где answer - это AnswerDto
-                    mapOf(
-                        "id" to q.id,
-                        "text" to q.text,
-                        "answers" to q.answers.map { a -> AnswerDto(a.id, a.text) }
-                    )
-                }
-
-                val response = mapOf(
-                    "id" to test.id,
-                    "title" to test.title,
-                    "questions" to safeQuestions
+                // Преобразуем Domain Model в DTO (безопасный JSON)
+                val response = TestDto(
+                    id = test.id,
+                    title = test.title,
+                    questions = test.questions.map { q ->
+                        QuestionDto(
+                            id = q.id,
+                            text = q.text,
+                            answers = q.answers.map { a -> AnswerDto(a.id, a.text) }
+                        )
+                    }
                 )
 
                 call.respond(response)
@@ -52,7 +64,14 @@ fun Route.testingRouting() {
         // 2. Отправить ответы
         post("/api/tests/{id}/submit") {
             val testId = call.parameters["id"]?.toIntOrNull() ?: return@post
-            val userAnswers = call.receive<List<SubmitAnswerRequest>>()
+
+            // Ловим возможные ошибки парсинга JSON от клиента
+            val userAnswers = try {
+                call.receive<List<SubmitAnswerRequest>>()
+            } catch (e: Exception) {
+                call.respond(HttpStatusCode.BadRequest, "Invalid data format")
+                return@post
+            }
 
             val principal = call.principal<JWTPrincipal>()
             val userId = principal?.payload?.getClaim("id")?.asInt()!!

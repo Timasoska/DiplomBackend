@@ -11,6 +11,16 @@ import org.jetbrains.exposed.sql.or
 
 class ContentRepositoryImpl : ContentRepository {
 
+    override suspend fun getUserTestResults(userId: Int): List<Pair<Int, Int>> = dbQuery {
+        // Объединяем Попытки -> Тесты, чтобы узнать topicId
+        (TestAttempts innerJoin Tests)
+            .slice(Tests.topicId, TestAttempts.score)
+            .select { TestAttempts.userId eq userId }
+            .map { row ->
+                row[Tests.topicId] to row[TestAttempts.score]
+            }
+    }
+
     override suspend fun getTestByTopicId(topicId: Int): Test? = dbQuery {
         // 1. Ищем сам тест
         val testRow = Tests.select { Tests.topicId eq topicId }.singleOrNull() ?: return@dbQuery null

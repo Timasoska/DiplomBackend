@@ -1,17 +1,16 @@
 package org.example
 
-import io.ktor.server.plugins.contentnegotiation.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
+import io.ktor.server.plugins.contentnegotiation.*
 import io.ktor.server.routing.*
 import kotlinx.coroutines.launch
 import org.example.data.db.*
-
-// Импорты таблиц
 import org.example.di.appModule
 import org.example.features.auth.authRouting
 import org.example.features.content.contentRouting
 import org.example.features.testing.testingRouting
+import org.example.features.analytics.analyticsRouting
 import org.example.plugins.configureDatabases
 import org.example.plugins.configureSecurity
 import org.jetbrains.exposed.sql.insert
@@ -23,84 +22,102 @@ fun main(args: Array<String>) {
 }
 
 fun Application.module() {
-    // 1. Настройка JSON
     install(ContentNegotiation) {
         json()
     }
-
-    // 2. Настройка Koin (DI)
     install(Koin) {
         modules(appModule)
     }
 
-    // 3. Подключение БД
     configureDatabases()
-
     configureSecurity()
 
-    // 4. Заполнение базы
+    // Заполнение базы данными
     launch {
         dbQuery {
             if (Disciplines.selectAll().empty()) {
-                // --- 1. Создаем Дисциплину (Уголовное право) ---
-                // Используем Disciplines.name вместо просто name
-                val criminalLawId = Disciplines.insert {
+                println("🚀 Начинаем заполнение базы данных...")
+
+                // 1. Дисциплины
+                val criminalLawInsert = Disciplines.insert {
                     it[Disciplines.name] = "Уголовное право"
                     it[Disciplines.description] = "Изучение преступлений и наказаний"
-                } get Disciplines.id
+                }
+                val criminalLawId = criminalLawInsert[Disciplines.id]
 
-                // --- 2. Создаем вторую дисциплину ---
                 Disciplines.insert {
                     it[Disciplines.name] = "Гражданское право"
                     it[Disciplines.description] = "Регулирование отношений между гражданами"
                 }
 
-                // --- 3. Создаем Тему (привязываем к criminalLawId) ---
-                val topicId = Topics.insert {
+                // 2. Темы
+                val topicInsert = Topics.insert {
                     it[Topics.name] = "Понятие преступления"
                     it[Topics.disciplineId] = criminalLawId
-                } get Topics.id
+                }
+                val topicId = topicInsert[Topics.id]
 
-                // --- 4. Создаем Лекцию (привязываем к topicId) ---
+                // 3. Лекции
                 Lectures.insert {
                     it[Lectures.title] = "Что такое преступление?"
-                    it[Lectures.content] = "Преступление — это виновно совершенное общественно опасное деяние, запрещенное настоящим Кодексом под угрозой наказания."
+                    it[Lectures.content] = "Преступление — это виновно совершенное общественно опасное деяние..."
                     it[Lectures.topicId] = topicId
                 }
 
-                val testId = Tests.insert {
-                    it[Tests.title] = "Тест по теме: Понятие преступления"
+                // --- 4. Тесты (ИСПРАВЛЕНО: Добавлены явные указания таблиц Tests.) ---
+                val testInsert = Tests.insert {
+                    it[Tests.title] = "Тест: Понятие преступления"
                     it[Tests.topicId] = topicId
-                } get Tests.id
+                }
+                val testId = testInsert[Tests.id]
 
-                // Вопрос 1
-                val q1 = Questions.insert {
-                    it[Questions.questionText] = "Является ли преступлением мысль о краже?"
+                // Вопрос 1 (ИСПРАВЛЕНО: Questions.)
+                val q1Insert = Questions.insert {
+                    it[Questions.questionText] = "Является ли мысль о преступлении преступлением?"
                     it[Questions.testId] = testId
-                } get Questions.id
+                }
+                val q1Id = q1Insert[Questions.id]
 
-                Answers.insert { it[answerText] = "Да"; it[isCorrect] = false; it[questionId] = q1 }
-                Answers.insert { it[answerText] = "Нет"; it[isCorrect] = true; it[questionId] = q1 } // Правильный
+                // Ответы 1 (ИСПРАВЛЕНО: Answers.)
+                Answers.insert {
+                    it[Answers.answerText] = "Да"
+                    it[Answers.isCorrect] = false
+                    it[Answers.questionId] = q1Id
+                }
+                Answers.insert {
+                    it[Answers.answerText] = "Нет"
+                    it[Answers.isCorrect] = true
+                    it[Answers.questionId] = q1Id
+                }
 
-                // Вопрос 2
-                val q2 = Questions.insert {
-                    it[Questions.questionText] = "Какой признак не относится к преступлению?"
+                // Вопрос 2 (ИСПРАВЛЕНО: Questions.)
+                val q2Insert = Questions.insert {
+                    it[Questions.questionText] = "Обязательный признак преступления?"
                     it[Questions.testId] = testId
-                } get Questions.id
+                }
+                val q2Id = q2Insert[Questions.id]
 
-                Answers.insert { it[answerText] = "Виновность"; it[isCorrect] = false; it[questionId] = q2 }
-                Answers.insert { it[answerText] = "Общественная опасность"; it[isCorrect] = false; it[questionId] = q2 }
-                Answers.insert { it[answerText] = "Полезность"; it[isCorrect] = true; it[questionId] = q2 } // Правильный
+                // Ответы 2 (ИСПРАВЛЕНО: Answers.)
+                Answers.insert {
+                    it[Answers.answerText] = "Красота"
+                    it[Answers.isCorrect] = false
+                    it[Answers.questionId] = q2Id
+                }
+                Answers.insert {
+                    it[Answers.answerText] = "Общественная опасность"
+                    it[Answers.isCorrect] = true
+                    it[Answers.questionId] = q2Id
+                }
 
-                println("✅ База данных успешно заполнена контентом!")
+                println("✅ База данных успешно заполнена!")
             }
         }
     }
 
-    // 5. Роутинг
     routing {
         contentRouting()
         authRouting()
         testingRouting()
+        analyticsRouting()
     }
 }

@@ -18,4 +18,6 @@ interface ContentRepository {
     suspend fun getTestByTopicId(topicId: Int): Test?
     suspend fun saveTestAttempt(userId: Int, testId: Int, score: Int)
     suspend fun getCorrectAnswerId(questionId: Int): Int? // Чтобы проверить ответ
+    // Возвращаем пару: (ID Темы, Балл за попытку)
+    suspend fun getUserTestResults(userId: Int): List<Pair<Int, Int>>
 }
