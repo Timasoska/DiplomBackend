@@ -5,10 +5,7 @@ import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import org.example.domain.usecase.FavoritesUseCase
-import org.example.domain.usecase.GetDisciplinesUseCase
-import org.example.domain.usecase.GetLectureUseCase
-import org.example.domain.usecase.GetTopicsUseCase
+import org.example.domain.usecase.*
 import org.koin.ktor.ext.inject
 
 fun Route.contentRouting() {
@@ -16,8 +13,16 @@ fun Route.contentRouting() {
     val getDisciplinesUseCase by inject<GetDisciplinesUseCase>()
     val getTopicsUseCase by inject<GetTopicsUseCase>()
     val getLectureUseCase by inject<GetLectureUseCase>()
+    val searchUseCase by inject<SearchUseCase>()
 
     authenticate("auth-jwt") {
+
+        // Поиск
+        get("/api/search") {
+            val query = call.request.queryParameters["q"] ?: ""
+            val results = searchUseCase(query)
+            call.respond(results)
+        }
 
         // 1. Все дисциплины
         get("/api/disciplines") {

@@ -5,15 +5,13 @@ import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.routing.*
 import kotlinx.coroutines.launch
+import org.example.data.db.*
 
 // Импорты таблиц
-import org.example.data.db.Disciplines
-import org.example.data.db.Lectures
-import org.example.data.db.Topics
-import org.example.data.db.dbQuery
 import org.example.di.appModule
 import org.example.features.auth.authRouting
 import org.example.features.content.contentRouting
+import org.example.features.testing.testingRouting
 import org.example.plugins.configureDatabases
 import org.example.plugins.configureSecurity
 import org.jetbrains.exposed.sql.insert
@@ -70,6 +68,30 @@ fun Application.module() {
                     it[Lectures.topicId] = topicId
                 }
 
+                val testId = Tests.insert {
+                    it[Tests.title] = "Тест по теме: Понятие преступления"
+                    it[Tests.topicId] = topicId
+                } get Tests.id
+
+                // Вопрос 1
+                val q1 = Questions.insert {
+                    it[Questions.questionText] = "Является ли преступлением мысль о краже?"
+                    it[Questions.testId] = testId
+                } get Questions.id
+
+                Answers.insert { it[answerText] = "Да"; it[isCorrect] = false; it[questionId] = q1 }
+                Answers.insert { it[answerText] = "Нет"; it[isCorrect] = true; it[questionId] = q1 } // Правильный
+
+                // Вопрос 2
+                val q2 = Questions.insert {
+                    it[Questions.questionText] = "Какой признак не относится к преступлению?"
+                    it[Questions.testId] = testId
+                } get Questions.id
+
+                Answers.insert { it[answerText] = "Виновность"; it[isCorrect] = false; it[questionId] = q2 }
+                Answers.insert { it[answerText] = "Общественная опасность"; it[isCorrect] = false; it[questionId] = q2 }
+                Answers.insert { it[answerText] = "Полезность"; it[isCorrect] = true; it[questionId] = q2 } // Правильный
+
                 println("✅ База данных успешно заполнена контентом!")
             }
         }
@@ -79,5 +101,6 @@ fun Application.module() {
     routing {
         contentRouting()
         authRouting()
+        testingRouting()
     }
 }

@@ -2,6 +2,7 @@ package org.example.domain.repository
 
 import org.example.domain.model.Discipline
 import org.example.domain.model.Lecture
+import org.example.domain.model.Test
 import org.example.domain.model.Topic
 
 interface ContentRepository {
@@ -13,4 +14,8 @@ interface ContentRepository {
     suspend fun addFavorite(userId: Int, lectureId: Int)
     suspend fun removeFavorite(userId: Int, lectureId: Int)
     suspend fun getFavorites(userId: Int): List<Lecture>
+    suspend fun searchLectures(query: String): List<Lecture>
+    suspend fun getTestByTopicId(topicId: Int): Test?
+    suspend fun saveTestAttempt(userId: Int, testId: Int, score: Int)
+    suspend fun getCorrectAnswerId(questionId: Int): Int? // Чтобы проверить ответ
 }

@@ -24,4 +24,7 @@ val appModule = module {
     factory { GetTopicsUseCase(get()) } // <--- Добавили
     factory { GetLectureUseCase(get()) } // <--- Добавили
     factory { FavoritesUseCase(get()) }
+    factory { SearchUseCase(get()) }
+    factory { GetTestUseCase(get()) }
+    factory { SubmitTestUseCase(get()) }
 }
