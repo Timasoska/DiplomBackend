@@ -1,0 +1,31 @@
+version: '3.8'
+services:
+  # 1. Наше приложение
+  app:
+    build: .
+    ports:
+      - "8095:8095"
+    environment:
+      - PORT=8095
+      - DB_DRIVER=org.postgresql.Driver
+      - JDBC_URL=jdbc:postgresql://db:5432/law_db
+      - DB_USER=law_user
+      - DB_PASSWORD=law_password
+    depends_on:
+      - db
+    restart: on-failure
+
+  # 2. База данных PostgreSQL
+  db:
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=law_db
+      - POSTGRES_USER=law_user
+      - POSTGRES_PASSWORD=law_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:

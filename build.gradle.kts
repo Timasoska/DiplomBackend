@@ -1,6 +1,7 @@
 plugins {
     kotlin("jvm") version "2.1.0"
     id("org.jetbrains.kotlin.plugin.serialization") version "1.9.21"
+    id("com.github.johnrengelman.shadow") version "8.1.1"
 }
 
 group = "org.example"
@@ -37,4 +38,12 @@ tasks.test {
 }
 kotlin {
     jvmToolchain(17)
+}
+
+tasks {
+    shadowJar {
+        manifest {
+            attributes(Pair("Main-Class", "org.example.ApplicationKt"))
+        }
+    }
 }
