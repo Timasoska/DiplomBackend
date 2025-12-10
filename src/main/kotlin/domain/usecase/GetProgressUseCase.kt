@@ -1,30 +1,31 @@
 package org.example.domain.usecase
 
-import kotlinx.serialization.Serializable
+import org.example.core.math.LinearRegression
+import org.example.data.dto.ProgressDto
 import org.example.domain.repository.ContentRepository
 
-@Serializable
-data class ProgressResponse(
-    val testsPassed: Int,
-    val averageScore: Double
-)
-
-class GetProgressUseCase(private val repository: ContentRepository) {
-    suspend operator fun invoke(userId: Int): ProgressResponse {
+// Убрали @Inject constructor
+class GetProgressUseCase(
+    private val repository: ContentRepository
+) {
+    suspend operator fun invoke(userId: Int): ProgressDto {
         val results = repository.getUserTestResults(userId)
 
         if (results.isEmpty()) {
-            return ProgressResponse(0, 0.0)
+            return ProgressDto(0, 0.0, 0.0)
         }
 
-        val totalTests = results.size
-        // Считаем среднее арифметическое всех баллов
-        val avgScore = results.map { it.second }.average()
+        val scores = results.map { it.second }
+        val totalTests = scores.size
+        val avgScore = scores.average()
 
-        return ProgressResponse(
+        // Математика
+        val trend = LinearRegression.calculateTrend(scores)
+
+        return ProgressDto(
             testsPassed = totalTests,
-            averageScore = String.format("%.1f", avgScore).replace(',', '.').toDouble()
-            // Округляем до 1 знака
+            averageScore = String.format("%.1f", avgScore).replace(',', '.').toDouble(),
+            trend = String.format("%.2f", trend).replace(',', '.').toDouble()
         )
     }
 }

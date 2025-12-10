@@ -31,6 +31,15 @@ fun Route.analyticsRouting() {
                 val topics = getRecommendationsUseCase(userId)
                 call.respond(topics)
             }
+
+            get("/progress") {
+                val principal = call.principal<JWTPrincipal>()
+                val userId = principal?.payload?.getClaim("id")?.asInt()!!
+
+                // UseCase теперь возвращает ProgressDto с полем trend
+                val progress = getProgressUseCase(userId)
+                call.respond(progress)
+            }
         }
     }
 }

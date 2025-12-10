@@ -14,6 +14,8 @@ val appModule = module {
     single<AuthRepository> { AuthRepositoryImpl() }
     single { PasswordService() }
     single { TokenService() }
+    single<ContentRepository> { ContentRepositoryImpl() } // Если еще не было
+
 
     factory { RegisterUseCase(get(), get(), get()) }
     factory { LoginUseCase(get(), get(), get()) }
@@ -29,4 +31,6 @@ val appModule = module {
     factory { SubmitTestUseCase(get()) }
     factory { GetRecommendationsUseCase(get()) }
     factory { GetProgressUseCase(get()) }
+    factory { GetProgressUseCase(get()) } // <--- ВОТ ЭТО ВАЖНО
+
 }
