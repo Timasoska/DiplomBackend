@@ -1,12 +1,12 @@
 version: '3.8'
 services:
-  # 1. Наше приложение
+  # 1. Приложение
   app:
     build: .
     ports:
-      - "8095:8095"
+      - "5555:5555"  # Внешний порт ПК : Внутренний порт контейнера
     environment:
-      - PORT=8095
+      - PORT=5555
       - DB_DRIVER=org.postgresql.Driver
       - JDBC_URL=jdbc:postgresql://db:5432/law_db
       - DB_USER=law_user
@@ -15,7 +15,7 @@ services:
       - db
     restart: on-failure
 
-  # 2. База данных PostgreSQL
+  # 2. База данных
   db:
     image: postgres:15-alpine
     ports:
