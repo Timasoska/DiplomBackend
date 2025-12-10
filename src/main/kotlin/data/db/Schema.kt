@@ -58,6 +58,14 @@ object Questions : Table("questions") {
     val questionText = text("question_text")
     val testId = integer("test_id").references(Tests.id)
 
+    /**
+     * Сложность вопроса:
+     * 1 - Легкий (Зеленый)
+     * 2 - Средний (Желтый)
+     * 3 - Сложный (Красный)
+     */
+    val difficulty = integer("difficulty").default(1) // <--- Добавили колонку
+
     override val primaryKey = PrimaryKey(id)
 }
 
@@ -93,3 +101,4 @@ object UserFavorites : Table("user_favorites") {
 
     override val primaryKey = PrimaryKey(id)
 }
+

@@ -19,6 +19,7 @@ import org.koin.ktor.ext.inject
 data class QuestionDto(
     val id: Int,
     val text: String,
+    val difficulty: Int, // <--- Добавили поле
     val answers: List<AnswerDto>
 )
 
@@ -50,6 +51,7 @@ fun Route.testingRouting() {
                         QuestionDto(
                             id = q.id,
                             text = q.text,
+                            difficulty = q.difficulty, // <--- ВОТ ЭТОГО НЕ ХВАТАЛО
                             answers = q.answers.map { a -> AnswerDto(a.id, a.text) }
                         )
                     }

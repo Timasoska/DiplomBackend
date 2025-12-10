@@ -16,6 +16,7 @@
           "questions": [
             {
               "text": "Является ли мысль о преступлении наказуемой?",
+              "difficulty": 1,
               "answers": [
                 { "text": "Да, всегда", "isCorrect": false },
                 { "text": "Нет, никогда", "isCorrect": true }
@@ -23,6 +24,7 @@
             },
             {
               "text": "Какой признак обязателен для преступления?",
+              "difficulty": 1,
               "answers": [
                 { "text": "Общественная опасность", "isCorrect": true },
                 { "text": "Аморальность", "isCorrect": false }

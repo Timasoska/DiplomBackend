@@ -13,7 +13,7 @@ data class SeedDiscipline(
 data class SeedTopic(
     val name: String,
     val lectures: List<SeedLecture> = emptyList(),
-    val test: SeedTest? = null
+    val test: SeedTest? = null // Теста может и не быть
 )
 
 @Serializable
@@ -31,6 +31,7 @@ data class SeedTest(
 @Serializable
 data class SeedQuestion(
     val text: String,
+    val difficulty: Int = 1, // <--- Добавили (по умолчанию 1)
     val answers: List<SeedAnswer>
 )
 

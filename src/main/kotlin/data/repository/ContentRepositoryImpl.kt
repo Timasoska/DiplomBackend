@@ -44,6 +44,7 @@ class ContentRepositoryImpl : ContentRepository {
             Question(
                 id = qId,
                 text = qRow[Questions.questionText],
+                difficulty = qRow[Questions.difficulty], // <--- Читаем из базы
                 answers = answers
             )
         }
