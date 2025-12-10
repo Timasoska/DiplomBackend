@@ -13,7 +13,7 @@ data class SeedDiscipline(
 data class SeedTopic(
     val name: String,
     val lectures: List<SeedLecture> = emptyList(),
-    val test: SeedTest? = null // Теста может и не быть
+    val test: SeedTest? = null
 )
 
 @Serializable
