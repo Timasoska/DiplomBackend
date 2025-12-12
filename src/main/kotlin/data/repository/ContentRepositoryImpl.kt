@@ -1,92 +1,153 @@
 package org.example.data.repository
 
-import org.example.data.db.* // Импорт всех таблиц
+import org.example.data.db.*
+import org.example.data.dto.DisciplineStatDto
+import org.example.data.dto.ProgressDto
 import org.example.domain.model.*
 import org.example.domain.repository.ContentRepository
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
-import kotlin.text.insert
-import org.jetbrains.exposed.sql.lowerCase
-import org.jetbrains.exposed.sql.or
+import org.jetbrains.exposed.sql.transactions.TransactionManager
+import java.sql.ResultSet
 
+/**
+ * Реализация репозитория данных.
+ *
+ * Архитектурное решение:
+ * 1. Для CRUD-операций (чтение курсов, лекций, сохранение попыток) используется Exposed DSL.
+ *    Это обеспечивает типобезопасность и защиту от SQL-инъекций.
+ * 2. Для сложной аналитики (расчет трендов, агрегация) используется Native SQL (JDBC).
+ *    Это позволяет использовать мощные функции PostgreSQL (REGR_SLOPE, Window Functions)
+ *    и избежать выгрузки тысяч записей в оперативную память сервера.
+ */
 class ContentRepositoryImpl : ContentRepository {
 
+    // --- АНАЛИТИКА (Native SQL) ---
+
     override suspend fun getUserTestResults(userId: Int): List<Pair<Int, Int>> = dbQuery {
-        // Объединяем Попытки -> Тесты, чтобы узнать topicId
-        (TestAttempts innerJoin Tests)
-            .slice(Tests.topicId, TestAttempts.score)
-            .select { TestAttempts.userId eq userId }
-            .map { row ->
-                row[Tests.topicId] to row[TestAttempts.score]
+        val sql = """
+            SELECT t.topic_id, ta.score 
+            FROM test_attempts ta
+            JOIN tests t ON ta.test_id = t.test_id
+            WHERE ta.user_id = ?
+            ORDER BY ta.attempted_at ASC
+        """.trimIndent()
+
+        val results = mutableListOf<Pair<Int, Int>>()
+
+        // Используем безопасный PreparedStatement через текущее соединение транзакции
+        execPattern(sql, listOf(userId)) { rs ->
+            while (rs.next()) {
+                results.add(rs.getInt("topic_id") to rs.getInt("score"))
             }
+        }
+        results
     }
 
-    override suspend fun getTestByTopicId(topicId: Int): Test? = dbQuery {
-        // 1. Ищем сам тест
-        val testRow = Tests.select { Tests.topicId eq topicId }.singleOrNull() ?: return@dbQuery null
-        val testId = testRow[Tests.id]
-
-        // 2. Ищем вопросы к тесту
-        val questionsRows = Questions.select { Questions.testId eq testId }.toList()
-
-        // 3. Собираем всё в структуру
-        val questions = questionsRows.map { qRow ->
-            val qId = qRow[Questions.id]
-            // Для каждого вопроса ищем ответы
-            val answers = Answers.select { Answers.questionId eq qId }.map { aRow ->
-                Answer(
-                    id = aRow[Answers.id],
-                    text = aRow[Answers.answerText],
-                    isCorrect = aRow[Answers.isCorrect]
-                )
-            }
-
-            Question(
-                id = qId,
-                text = qRow[Questions.questionText],
-                difficulty = qRow[Questions.difficulty], // <--- Читаем из базы
-                answers = answers
+    override suspend fun getFullProgress(userId: Int): ProgressDto = dbQuery {
+        // 1. Расчет общей статистики (Всего сдано, Средний балл, Общий тренд)
+        // Используем CTE и оконные функции PostgreSQL
+        val globalSql = """
+            WITH ordered_attempts AS (
+                SELECT 
+                    CAST(score AS FLOAT) as score_float, 
+                    CAST(ROW_NUMBER() OVER (ORDER BY attempted_at) AS FLOAT) as rn
+                FROM test_attempts
+                WHERE user_id = ?
             )
+            SELECT 
+                COUNT(*) as total_count,
+                COALESCE(AVG(score_float), 0) as avg_score,
+                COALESCE(REGR_SLOPE(score_float, rn), 0) as trend
+            FROM ordered_attempts;
+        """.trimIndent()
+
+        var totalTests = 0
+        var totalAvg = 0.0
+        var totalTrend = 0.0
+
+        execPattern(globalSql, listOf(userId)) { rs ->
+            if (rs.next()) {
+                totalTests = rs.getInt("total_count")
+                totalAvg = rs.getDouble("avg_score")
+                totalTrend = rs.getDouble("trend")
+            }
         }
 
-        Test(
-            id = testId,
-            title = testRow[Tests.title],
-            topicId = testRow[Tests.topicId],
-            questions = questions
+        // 2. Расчет статистики по каждой дисциплине
+        val disciplinesSql = """
+            WITH ordered_attempts AS (
+                SELECT 
+                    d.name as discipline_name,
+                    d.discipline_id as discipline_id,
+                    CAST(ta.score AS FLOAT) as score_float,
+                    CAST(ROW_NUMBER() OVER (PARTITION BY d.discipline_id ORDER BY ta.attempted_at) AS FLOAT) as rn
+                FROM test_attempts ta
+                JOIN tests t ON ta.test_id = t.test_id
+                JOIN topics top ON t.topic_id = top.topic_id
+                JOIN disciplines d ON top.discipline_id = d.discipline_id
+                WHERE ta.user_id = ?
+            )
+            SELECT 
+                discipline_id,
+                discipline_name,
+                COALESCE(AVG(score_float), 0) as avg_score,
+                COALESCE(REGR_SLOPE(score_float, rn), 0) as trend
+            FROM ordered_attempts
+            GROUP BY discipline_id, discipline_name;
+        """.trimIndent()
+
+        val disciplinesStats = mutableListOf<DisciplineStatDto>()
+
+        execPattern(disciplinesSql, listOf(userId)) { rs ->
+            while (rs.next()) {
+                disciplinesStats.add(
+                    DisciplineStatDto(
+                        id = rs.getInt("discipline_id"),
+                        name = rs.getString("discipline_name"),
+                        averageScore = String.format("%.1f", rs.getDouble("avg_score")).replace(',', '.').toDouble(),
+                        trend = String.format("%.2f", rs.getDouble("trend")).replace(',', '.').toDouble()
+                    )
+                )
+            }
+        }
+
+        ProgressDto(
+            testsPassed = totalTests,
+            averageScore = String.format("%.1f", totalAvg).replace(',', '.').toDouble(),
+            trend = String.format("%.2f", totalTrend).replace(',', '.').toDouble(),
+            disciplines = disciplinesStats
         )
     }
 
-    override suspend fun saveTestAttempt(userId: Int, testId: Int, score: Int) = dbQuery {
-        TestAttempts.insert {
-            it[TestAttempts.userId] = userId
-            it[TestAttempts.testId] = testId
-            it[TestAttempts.score] = score
+    // Вспомогательная функция для безопасного выполнения SELECT через JDBC
+    private fun <T> Transaction.execPattern(sql: String, params: List<Any>, transform: (ResultSet) -> T): T? {
+        // Достаем "голое" JDBC соединение
+        val jdbcConnection = (connection.connection as java.sql.Connection)
+
+        // Создаем PreparedStatement
+        val stmt = jdbcConnection.prepareStatement(sql)
+
+        params.forEachIndexed { index, value ->
+            // Устанавливаем параметры (индекс в JDBC начинается с 1)
+            when (value) {
+                is Int -> stmt.setInt(index + 1, value)
+                is String -> stmt.setString(index + 1, value)
+                // Если будут Double или другие типы - добавь их сюда
+            }
         }
-        Unit
+
+        val rs = stmt.executeQuery()
+        val result = transform(rs)
+
+        // Закрываем ресурсы
+        stmt.close()
+
+        return result
     }
 
-    override suspend fun getCorrectAnswerId(questionId: Int): Int? = dbQuery {
-        Answers.select { (Answers.questionId eq questionId) and (Answers.isCorrect eq true) }
-            .map { it[Answers.id] }
-            .singleOrNull()
-    }
 
-    override suspend fun searchLectures(query: String): List<Lecture> = dbQuery {
-        val searchQuery = "%${query.lowercase()}%"
-
-        Lectures.select {
-            (Lectures.title.lowerCase() like searchQuery) or
-                    (Lectures.content.lowerCase() like searchQuery)
-        }.map { row ->
-            Lecture(
-                id = row[Lectures.id],
-                title = row[Lectures.title],
-                content = row[Lectures.content],
-                topicId = row[Lectures.topicId]
-            )
-        }
-    }
+    // --- CRUD ОПЕРАЦИИ (Exposed DSL) ---
 
     override suspend fun getAllDisciplines(): List<Discipline> = dbQuery {
         Disciplines.selectAll().map { row ->
@@ -135,13 +196,17 @@ class ContentRepositoryImpl : ContentRepository {
     }
 
     override suspend fun addFavorite(userId: Int, lectureId: Int) = dbQuery {
-        // insertIgnore проигнорирует дубликаты (если уже добавлено)
-        // Если insertIgnore не подсвечивается, используй просто insert, но оберни в try-catch
-        UserFavorites.insert {
-            it[UserFavorites.userId] = userId
-            it[UserFavorites.lectureId] = lectureId
+        // Проверяем на дубликаты перед вставкой
+        val exists = UserFavorites.select {
+            (UserFavorites.userId eq userId) and (UserFavorites.lectureId eq lectureId)
+        }.count() > 0
+
+        if (!exists) {
+            UserFavorites.insert {
+                it[UserFavorites.userId] = userId
+                it[UserFavorites.lectureId] = lectureId
+            }
         }
-        Unit // Возвращаем Unit (void)
     }
 
     override suspend fun removeFavorite(userId: Int, lectureId: Int) = dbQuery {
@@ -152,7 +217,6 @@ class ContentRepositoryImpl : ContentRepository {
     }
 
     override suspend fun getFavorites(userId: Int): List<Lecture> = dbQuery {
-        // Магия SQL: Объединяем (JOIN) таблицу Избранного с Лекциями
         (Lectures innerJoin UserFavorites)
             .select { UserFavorites.userId eq userId }
             .map { row ->
@@ -163,5 +227,65 @@ class ContentRepositoryImpl : ContentRepository {
                     topicId = row[Lectures.topicId]
                 )
             }
+    }
+
+    override suspend fun searchLectures(query: String): List<Lecture> = dbQuery {
+        val searchQuery = "%${query.lowercase()}%"
+        Lectures.select {
+            (Lectures.title.lowerCase() like searchQuery) or
+                    (Lectures.content.lowerCase() like searchQuery)
+        }.map { row ->
+            Lecture(
+                id = row[Lectures.id],
+                title = row[Lectures.title],
+                content = row[Lectures.content],
+                topicId = row[Lectures.topicId]
+            )
+        }
+    }
+
+    override suspend fun getTestByTopicId(topicId: Int): Test? = dbQuery {
+        val testRow = Tests.select { Tests.topicId eq topicId }.singleOrNull() ?: return@dbQuery null
+        val testId = testRow[Tests.id]
+
+        val questions = Questions.select { Questions.testId eq testId }.map { qRow ->
+            val qId = qRow[Questions.id]
+            val answers = Answers.select { Answers.questionId eq qId }.map { aRow ->
+                Answer(
+                    id = aRow[Answers.id],
+                    text = aRow[Answers.answerText],
+                    isCorrect = aRow[Answers.isCorrect]
+                )
+            }
+            Question(
+                id = qId,
+                text = qRow[Questions.questionText],
+                difficulty = qRow[Questions.difficulty],
+                answers = answers
+            )
+        }
+
+        Test(
+            id = testId,
+            title = testRow[Tests.title],
+            topicId = testRow[Tests.topicId],
+            questions = questions
+        )
+    }
+
+    override suspend fun saveTestAttempt(userId: Int, testId: Int, score: Int) = dbQuery {
+        TestAttempts.insert {
+            it[TestAttempts.userId] = userId
+            it[TestAttempts.testId] = testId
+            it[TestAttempts.score] = score
+        }
+        Unit
+    }
+
+    override suspend fun getCorrectAnswerId(questionId: Int): Int? = dbQuery {
+        Answers.slice(Answers.id)
+            .select { (Answers.questionId eq questionId) and (Answers.isCorrect eq true) }
+            .map { it[Answers.id] }
+            .singleOrNull()
     }
 }

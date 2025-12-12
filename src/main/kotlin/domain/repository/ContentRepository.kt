@@ -1,5 +1,6 @@
 package org.example.domain.repository
 
+import org.example.data.dto.ProgressDto
 import org.example.domain.model.Discipline
 import org.example.domain.model.Lecture
 import org.example.domain.model.Test
@@ -19,5 +20,7 @@ interface ContentRepository {
     suspend fun saveTestAttempt(userId: Int, testId: Int, score: Int)
     suspend fun getCorrectAnswerId(questionId: Int): Int? // Чтобы проверить ответ
     // Возвращаем пару: (ID Темы, Балл за попытку)
+    // Этот метод теперь возвращает готовую статистику
+    suspend fun getFullProgress(userId: Int): ProgressDto
     suspend fun getUserTestResults(userId: Int): List<Pair<Int, Int>>
 }
