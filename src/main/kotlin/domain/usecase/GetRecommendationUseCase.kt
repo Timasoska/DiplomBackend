@@ -13,15 +13,19 @@ class GetRecommendationsUseCase(private val repository: ContentRepository) {
             valueTransform = { it.second }
         )
 
-        val badTopicIds = resultsByTopic.filter { (topicId, scores) ->
-            // АДАПТИВНАЯ ЛОГИКА v2.0:
-            // Берем только последние 3 попытки
-            val lastAttempts = scores.takeLast(3)
+        val badTopicIds = resultsByTopic.filter { (topicId, attempts) ->
+            val lastAttempts = attempts.takeLast(3)
 
-            // Если попыток хотя бы 3, и ВСЕ ПОСЛЕДНИЕ провальные (< 60)
-            val isFallingBehind = lastAttempts.size >= 3 && lastAttempts.all { it < 60 }
+            // Математический подход: вычисляем среднее последних попыток
+            val averageRecent = if (lastAttempts.isNotEmpty()) lastAttempts.average() else 100.0
 
-            isFallingBehind
+            // Условие 1: Средний балл за последнее время ниже 60%
+            val lowAverage = lastAttempts.size >= 2 && averageRecent < 60.0
+
+            // Условие 2: Резкий спад (например, последняя оценка намного хуже предпоследней)
+            val sharpDrop = lastAttempts.size >= 2 && (lastAttempts[lastAttempts.size - 2] - lastAttempts.last()) > 40
+
+            lowAverage || sharpDrop
         }.keys
 
         val topicsToRepeat = mutableListOf<Topic>()
