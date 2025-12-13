@@ -1,5 +1,6 @@
 package org.example.domain.repository
 
+import org.example.data.dto.LeaderboardItemDto
 import org.example.data.dto.LectureDto
 import org.example.data.dto.ProgressDto
 import org.example.domain.model.Discipline
@@ -24,4 +25,5 @@ interface ContentRepository {
     // Этот метод теперь возвращает готовую статистику
     suspend fun getFullProgress(userId: Int): ProgressDto
     suspend fun getUserTestResults(userId: Int): List<Pair<Int, Int>>
+    suspend fun getLeaderboard(): List<LeaderboardItemDto>
 }

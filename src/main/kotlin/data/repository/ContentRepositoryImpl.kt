@@ -2,12 +2,14 @@ package org.example.data.repository
 
 import org.example.data.db.*
 import org.example.data.dto.DisciplineStatDto
+import org.example.data.dto.LeaderboardItemDto
 import org.example.data.dto.LectureDto
 import org.example.data.dto.ProgressDto
 import org.example.domain.model.*
 import org.example.domain.repository.ContentRepository
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.transactions.TransactionManager
 import java.sql.ResultSet
 
 /**
@@ -21,6 +23,46 @@ import java.sql.ResultSet
  *    и избежать выгрузки тысяч записей в оперативную память сервера.
  */
 class ContentRepositoryImpl : ContentRepository {
+
+    override suspend fun getLeaderboard(): List<LeaderboardItemDto> = dbQuery {
+        // Считаем рейтинг: (Кол-во тестов * Средний балл)
+        // Сортируем от большего к меньшему
+        // Берем Топ-10
+        val sql = """
+            SELECT 
+                u.email,
+                COUNT(ta.test_id) as tests_count,
+                COALESCE(AVG(ta.score), 0) as avg_score
+            FROM users u
+            JOIN test_attempts ta ON u.user_id = ta.user_id
+            GROUP BY u.user_id, u.email
+            ORDER BY (COUNT(ta.test_id) * AVG(ta.score)) DESC
+            LIMIT 10;
+        """.trimIndent()
+
+        val leaderboard = mutableListOf<LeaderboardItemDto>()
+
+        val jdbcConnection = (connection.connection as java.sql.Connection)
+        val stmt = jdbcConnection.prepareStatement(sql)
+        val rs = stmt.executeQuery()
+
+        while (rs.next()) {
+            val count = rs.getInt("tests_count")
+            val avg = rs.getDouble("avg_score")
+            val totalScore = count * avg
+
+            leaderboard.add(
+                LeaderboardItemDto(
+                    email = rs.getString("email"),
+                    score = String.format("%.1f", totalScore).replace(',', '.').toDouble(),
+                    testsPassed = count
+                )
+            )
+        }
+        stmt.close()
+
+        leaderboard
+    }
 
     // --- АНАЛИТИКА (Native SQL) ---
 

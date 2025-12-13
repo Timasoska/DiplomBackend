@@ -5,6 +5,7 @@ import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import org.example.domain.usecase.GetLeaderboardUseCase
 import org.example.domain.usecase.GetProgressUseCase
 import org.example.domain.usecase.GetRecommendationsUseCase
 import org.koin.ktor.ext.inject
@@ -12,6 +13,7 @@ import org.koin.ktor.ext.inject
 fun Route.analyticsRouting() {
     val getProgressUseCase by inject<GetProgressUseCase>()
     val getRecommendationsUseCase by inject<GetRecommendationsUseCase>()
+    val getLeaderboardUseCase by inject<GetLeaderboardUseCase>()
 
     authenticate("auth-jwt") {
         route("/api/analytics") {
@@ -40,6 +42,13 @@ fun Route.analyticsRouting() {
                 val progress = getProgressUseCase(userId)
                 call.respond(progress)
             }
+
+            // --- НОВЫЙ РОУТ ---
+            get("/leaderboard") {
+                val leaderboard = getLeaderboardUseCase()
+                call.respond(leaderboard)
+            }
+
         }
     }
 }
