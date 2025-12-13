@@ -7,7 +7,8 @@ data class ProgressDto(
     val testsPassed: Int,
     val averageScore: Double,
     val trend: Double,
-    val disciplines: List<DisciplineStatDto> = emptyList() // <--- Новый список
+    val disciplines: List<DisciplineStatDto> = emptyList(), // <--- Новый список
+    val history: List<Int> = emptyList() // <--- Массив оценок для графика (например: [0, 50, 60, 90])
 )
 
 @Serializable

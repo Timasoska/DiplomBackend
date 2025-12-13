@@ -154,10 +154,25 @@ class ContentRepositoryImpl : ContentRepository {
             }
         }
 
+        // --- НОВЫЙ БЛОК: ПОЛУЧЕНИЕ ИСТОРИИ (ДЛЯ ГРАФИКА) ---
+        val historySql = "SELECT score FROM test_attempts WHERE user_id = ? ORDER BY attempted_at ASC LIMIT 20"
+        val history = mutableListOf<Int>()
+
+        val stmtHistory = (connection.connection as java.sql.Connection).prepareStatement(historySql)
+        stmtHistory.setInt(1, userId)
+        val rsHistory = stmtHistory.executeQuery()
+
+        while (rsHistory.next()) {
+            history.add(rsHistory.getInt("score"))
+        }
+        stmtHistory.close()
+        // ---------------------------------------------------
+
         ProgressDto(
             testsPassed = totalTests,
             averageScore = String.format("%.1f", totalAvg).replace(',', '.').toDouble(),
             trend = String.format("%.2f", totalTrend).replace(',', '.').toDouble(),
+            history = history, // <--- Передаем историю
             disciplines = disciplinesStats
         )
     }
