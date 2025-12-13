@@ -7,5 +7,6 @@ data class Lecture(
     val id: Int,
     val title: String,
     val content: String,
-    val topicId: Int
+    val topicId: Int,
+    val isFavorite: Boolean = false // <--- ДОБАВЬ ЭТУ СТРОКУ (с дефолтным значением false)
 )

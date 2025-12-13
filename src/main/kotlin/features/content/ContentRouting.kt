@@ -55,11 +55,18 @@ fun Route.contentRouting() {
         // 4. Конкретная лекция
         get("/api/lectures/{id}") {
             val id = call.parameters["id"]?.toIntOrNull()
+            // Достаем UserID из токена
+            val principal = call.principal<io.ktor.server.auth.jwt.JWTPrincipal>()
+            val userId = principal?.payload?.getClaim("id")?.asInt()!!
+
             if (id == null) {
                 call.respond(HttpStatusCode.BadRequest, "Invalid Lecture ID")
                 return@get
             }
-            val lecture = getLectureUseCase.byId(id)
+
+            // Передаем userId
+            val lecture = getLectureUseCase.byId(id, userId)
+
             if (lecture != null) {
                 call.respond(lecture)
             } else {

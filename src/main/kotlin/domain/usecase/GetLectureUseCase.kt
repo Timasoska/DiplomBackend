@@ -1,12 +1,15 @@
 package org.example.domain.usecase
 
+import org.example.data.dto.LectureDto
 import org.example.domain.model.Lecture
 import org.example.domain.repository.ContentRepository
 
 class GetLectureUseCase(private val repository: ContentRepository) {
     // Получить лекцию по ID (для чтения)
-    suspend fun byId(id: Int): Lecture? {
-        return repository.getLectureById(id)
+    // 1. Добавляем userId
+    // 2. Меняем возвращаемый тип на LectureDto? (чтобы передать isFavorite)
+    suspend fun byId(id: Int, userId: Int): LectureDto? {
+        return repository.getLectureById(id, userId)
     }
 
     // Получить список лекций по теме (для списка)

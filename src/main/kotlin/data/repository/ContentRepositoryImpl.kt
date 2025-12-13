@@ -2,12 +2,12 @@ package org.example.data.repository
 
 import org.example.data.db.*
 import org.example.data.dto.DisciplineStatDto
+import org.example.data.dto.LectureDto
 import org.example.data.dto.ProgressDto
 import org.example.domain.model.*
 import org.example.domain.repository.ContentRepository
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
-import org.jetbrains.exposed.sql.transactions.TransactionManager
 import java.sql.ResultSet
 
 /**
@@ -182,17 +182,22 @@ class ContentRepositoryImpl : ContentRepository {
             }
     }
 
-    override suspend fun getLectureById(lectureId: Int): Lecture? = dbQuery {
-        Lectures.select { Lectures.id eq lectureId }
-            .map { row ->
-                Lecture(
-                    id = row[Lectures.id],
-                    title = row[Lectures.title],
-                    content = row[Lectures.content],
-                    topicId = row[Lectures.topicId]
-                )
-            }
-            .singleOrNull()
+    override suspend fun getLectureById(lectureId: Int, userId: Int): LectureDto? = dbQuery {
+        val lectureRow = Lectures.select { Lectures.id eq lectureId }.singleOrNull()
+            ?: return@dbQuery null
+
+        // Проверяем, есть ли лайк от этого пользователя
+        val isFavorite = UserFavorites.select {
+            (UserFavorites.lectureId eq lectureId) and (UserFavorites.userId eq userId)
+        }.count() > 0
+
+        LectureDto(
+            id = lectureRow[Lectures.id],
+            title = lectureRow[Lectures.title],
+            content = lectureRow[Lectures.content],
+            topicId = lectureRow[Lectures.topicId],
+            isFavorite = isFavorite // <--- Заполняем поле
+        )
     }
 
     override suspend fun addFavorite(userId: Int, lectureId: Int) = dbQuery {
@@ -224,7 +229,8 @@ class ContentRepositoryImpl : ContentRepository {
                     id = row[Lectures.id],
                     title = row[Lectures.title],
                     content = row[Lectures.content],
-                    topicId = row[Lectures.topicId]
+                    topicId = row[Lectures.topicId],
+                    isFavorite = true // <--- В списке избранного это всегда true!
                 )
             }
     }
