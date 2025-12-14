@@ -13,23 +13,8 @@ import org.example.domain.model.SubmitAnswerRequest
 import org.example.domain.usecase.GetTestUseCase
 import org.example.domain.usecase.SubmitTestUseCase
 import org.koin.ktor.ext.inject
-
-// --- DTO классы для отправки теста клиенту ---
-@Serializable
-data class QuestionDto(
-    val id: Int,
-    val text: String,
-    val difficulty: Int, // <--- Добавили поле
-    val answers: List<AnswerDto>
-)
-
-@Serializable
-data class TestDto(
-    val id: Int,
-    val title: String,
-    val questions: List<QuestionDto>
-)
-// ---------------------------------------------
+import org.example.data.dto.TestDto
+import org.example.data.dto.QuestionDto
 
 fun Route.testingRouting() {
     val getTestUseCase by inject<GetTestUseCase>()
@@ -51,7 +36,8 @@ fun Route.testingRouting() {
                         QuestionDto(
                             id = q.id,
                             text = q.text,
-                            difficulty = q.difficulty, // <--- ВОТ ЭТОГО НЕ ХВАТАЛО
+                            difficulty = q.difficulty,
+                            isMultipleChoice = q.isMultipleChoice, // <--- ВОТ ЭТОГО НЕ ХВАТАЛО!
                             answers = q.answers.map { a -> AnswerDto(a.id, a.text) }
                         )
                     }
