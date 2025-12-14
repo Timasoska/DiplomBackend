@@ -324,6 +324,7 @@ class ContentRepositoryImpl : ContentRepository {
                 id = qId,
                 text = qRow[Questions.questionText],
                 difficulty = qRow[Questions.difficulty],
+                isMultipleChoice = qRow[Questions.isMultipleChoice], // <--- Читаем из БД
                 answers = answers
             )
         }
@@ -345,10 +346,22 @@ class ContentRepositoryImpl : ContentRepository {
         Unit
     }
 
-    override suspend fun getCorrectAnswerId(questionId: Int): Int? = dbQuery {
-        Answers.slice(Answers.id)
-            .select { (Answers.questionId eq questionId) and (Answers.isCorrect eq true) }
-            .map { it[Answers.id] }
-            .singleOrNull()
+    override suspend fun getCorrectAnswers(testId: Int): Map<Int, List<Int>> = dbQuery {
+        val result = mutableMapOf<Int, MutableList<Int>>()
+
+        // Джойним Ответы с Вопросами, фильтруем по ID теста и правильности
+        val query = (Answers innerJoin Questions)
+            .slice(Answers.questionId, Answers.id)
+            .select { (Questions.testId eq testId) and (Answers.isCorrect eq true) }
+
+        query.forEach { row ->
+            val qId = row[Answers.questionId]
+            val aId = row[Answers.id]
+            result.computeIfAbsent(qId) { mutableListOf() }.add(aId)
+        }
+
+        result
     }
+
+
 }

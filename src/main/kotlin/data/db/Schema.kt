@@ -65,7 +65,7 @@ object Questions : Table("questions") {
      * 3 - Сложный (Красный)
      */
     val difficulty = integer("difficulty").default(1) // <--- Добавили колонку
-
+    val isMultipleChoice = bool("is_multiple_choice").default(false) // <--- Добавили
     override val primaryKey = PrimaryKey(id)
 }
 

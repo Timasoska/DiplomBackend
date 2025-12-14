@@ -31,6 +31,7 @@ data class SeedTest(
 @Serializable
 data class SeedQuestion(
     val text: String,
+    val isMultipleChoice: Boolean = false, // <--- Добавили
     val difficulty: Int = 1, // <--- Добавили (по умолчанию 1)
     val answers: List<SeedAnswer>
 )

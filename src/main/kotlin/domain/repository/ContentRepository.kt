@@ -20,7 +20,7 @@ interface ContentRepository {
     suspend fun searchLectures(query: String): List<Lecture>
     suspend fun getTestByTopicId(topicId: Int): Test?
     suspend fun saveTestAttempt(userId: Int, testId: Int, score: Int)
-    suspend fun getCorrectAnswerId(questionId: Int): Int? // Чтобы проверить ответ
+    suspend fun getCorrectAnswers(testId: Int): Map<Int, List<Int>>
     // Возвращаем пару: (ID Темы, Балл за попытку)
     // Этот метод теперь возвращает готовую статистику
     suspend fun getFullProgress(userId: Int): ProgressDto

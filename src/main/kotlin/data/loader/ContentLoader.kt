@@ -70,6 +70,7 @@ object ContentLoader {
                                 val qInsert = Questions.insert {
                                     it[Questions.questionText] = q.text
                                     it[Questions.difficulty] = q.difficulty // <--- Сохраняем в базу
+                                    it[Questions.isMultipleChoice] = q.isMultipleChoice // <--- Сохраняем
                                     it[Questions.testId] = testId
                                 }
                                 val qId = qInsert[Questions.id]
