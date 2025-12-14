@@ -5,12 +5,21 @@ import org.example.domain.model.Question
 import org.example.domain.model.Test
 import org.example.domain.repository.ContentRepository
 
+/**
+ * Получение теста.
+ * Реализует логику "Анти-списывание": вопросы и ответы перемешиваются на сервере.
+ */
 class GetTestUseCase(private val repository: ContentRepository) {
-    // Возвращаем Any, чтобы можно было подменить структуру ответов,
-    // либо создадим специальный TestDto. Для простоты сейчас вернем Test, но с урезанными ответами вручную в Routing.
-    // А лучше сделаем правильно сразу.
 
     suspend operator fun invoke(topicId: Int): Test? {
-        return repository.getTestByTopicId(topicId)
+        val test = repository.getTestByTopicId(topicId) ?: return null
+
+        // 1. Перемешиваем вопросы
+        val shuffledQuestions = test.questions.shuffled().map { question ->
+            // 2. Перемешиваем варианты ответов внутри вопроса
+            question.copy(answers = question.answers.shuffled())
+        }
+
+        return test.copy(questions = shuffledQuestions)
     }
 }

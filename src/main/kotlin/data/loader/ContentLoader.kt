@@ -63,6 +63,7 @@ object ContentLoader {
                             val testInsert = Tests.insert {
                                 it[Tests.title] = test.title
                                 it[Tests.topicId] = topicId
+                                it[Tests.timeLimit] = test.timeLimit // <--- Сохраняем лимит
                             }
                             val testId = testInsert[Tests.id]
 

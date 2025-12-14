@@ -48,7 +48,11 @@ object Tests : Table("tests") {
     val id = integer("test_id").autoIncrement()
     val title = varchar("title", 255)
     val topicId = integer("topic_id").references(Topics.id)
-
+    /**
+     * Ограничение времени на прохождение теста в секундах.
+     * 0 или null - без ограничений.
+     */
+    val timeLimit = integer("time_limit").default(0) // <--- НОВОЕ ПОЛЕ
     override val primaryKey = PrimaryKey(id)
 }
 

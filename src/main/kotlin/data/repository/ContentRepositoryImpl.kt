@@ -333,6 +333,7 @@ class ContentRepositoryImpl : ContentRepository {
             id = testId,
             title = testRow[Tests.title],
             topicId = testRow[Tests.topicId],
+            timeLimit = testRow[Tests.timeLimit], // <--- Читаем таймер
             questions = questions
         )
     }

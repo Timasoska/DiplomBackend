@@ -25,19 +25,19 @@ fun Route.testingRouting() {
         // 1. Получить тест по ID темы
         get("/api/topics/{id}/test") {
             val topicId = call.parameters["id"]?.toIntOrNull() ?: return@get
-            val test = getTestUseCase(topicId)
+            val test = getTestUseCase(topicId) // Здесь уже вызван shuffle
 
             if (test != null) {
-                // Преобразуем Domain Model в DTO (безопасный JSON)
                 val response = TestDto(
                     id = test.id,
                     title = test.title,
+                    timeLimit = test.timeLimit, // <--- Передаем лимит
                     questions = test.questions.map { q ->
                         QuestionDto(
                             id = q.id,
                             text = q.text,
                             difficulty = q.difficulty,
-                            isMultipleChoice = q.isMultipleChoice, // <--- ВОТ ЭТОГО НЕ ХВАТАЛО!
+                            isMultipleChoice = q.isMultipleChoice,
                             answers = q.answers.map { a -> AnswerDto(a.id, a.text) }
                         )
                     }
@@ -53,7 +53,6 @@ fun Route.testingRouting() {
         post("/api/tests/{id}/submit") {
             val testId = call.parameters["id"]?.toIntOrNull() ?: return@post
 
-            // Ловим возможные ошибки парсинга JSON от клиента
             val userAnswers = try {
                 call.receive<List<SubmitAnswerRequest>>()
             } catch (e: Exception) {

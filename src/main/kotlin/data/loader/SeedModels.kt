@@ -25,7 +25,8 @@ data class SeedLecture(
 @Serializable
 data class SeedTest(
     val title: String,
-    val questions: List<SeedQuestion>
+    val questions: List<SeedQuestion>,
+    val timeLimit: Int = 0 // <--- НОВОЕ ПОЛЕ (0 - безлимит)
 )
 
 @Serializable
