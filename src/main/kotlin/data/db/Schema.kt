@@ -106,3 +106,20 @@ object UserFavorites : Table("user_favorites") {
     override val primaryKey = PrimaryKey(id)
 }
 
+// 10. Прогресс чтения лекции (Закладка)
+object LectureProgress : Table("lecture_progress") {
+    val id = integer("progress_id").autoIncrement()
+    val userId = integer("user_id").references(Users.id)
+    val lectureId = integer("lecture_id").references(Lectures.id)
+    // Индекс символа или скролла, где остановился студент
+    val progressIndex = integer("progress_index").default(0)
+    val selectedText = text("selected_text").nullable() // Храним цитату
+    val updatedAt = datetime("updated_at").clientDefault { LocalDateTime.now() }
+
+    override val primaryKey = PrimaryKey(id)
+
+    init {
+        // У одного юзера одна закладка на лекцию
+        uniqueIndex(userId, lectureId)
+    }
+}

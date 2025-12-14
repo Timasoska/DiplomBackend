@@ -33,5 +33,6 @@ val appModule = module {
     factory { GetProgressUseCase(get()) }
     factory { GetProgressUseCase(get()) } // <--- ВОТ ЭТО ВАЖНО
     factory { GetLeaderboardUseCase(get()) } // <--- Добавили
-
+    // Добавляем этот UseCase
+    factory { LectureProgressUseCase(get()) }
 }

@@ -25,7 +25,8 @@ fun Application.configureDatabases() {
     transaction(database) {
         SchemaUtils.create(
             Users, Disciplines, Topics, Lectures,
-            Tests, Questions, Answers, TestAttempts, UserFavorites
+            Tests, Questions, Answers, TestAttempts, UserFavorites,
+            LectureProgress,
         )
     }
 }

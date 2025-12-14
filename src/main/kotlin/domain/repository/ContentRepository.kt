@@ -2,6 +2,7 @@ package org.example.domain.repository
 
 import org.example.data.dto.LeaderboardItemDto
 import org.example.data.dto.LectureDto
+import org.example.data.dto.LectureProgressDto
 import org.example.data.dto.ProgressDto
 import org.example.domain.model.Discipline
 import org.example.domain.model.Lecture
@@ -21,9 +22,9 @@ interface ContentRepository {
     suspend fun getTestByTopicId(topicId: Int): Test?
     suspend fun saveTestAttempt(userId: Int, testId: Int, score: Int)
     suspend fun getCorrectAnswers(testId: Int): Map<Int, List<Int>>
-    // Возвращаем пару: (ID Темы, Балл за попытку)
-    // Этот метод теперь возвращает готовую статистику
     suspend fun getFullProgress(userId: Int): ProgressDto
     suspend fun getUserTestResults(userId: Int): List<Pair<Int, Int>>
     suspend fun getLeaderboard(): List<LeaderboardItemDto>
+    suspend fun saveLectureProgress(userId: Int, lectureId: Int, index: Int, quote: String?)
+    suspend fun getLectureProgress(userId: Int, lectureId: Int): LectureProgressDto?
 }

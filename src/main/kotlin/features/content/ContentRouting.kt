@@ -3,8 +3,11 @@ package org.example.features.content
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
+import io.ktor.server.auth.jwt.*
+import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import org.example.data.dto.UpdateProgressRequest
 import org.example.domain.usecase.*
 import org.koin.ktor.ext.inject
 
@@ -14,8 +17,45 @@ fun Route.contentRouting() {
     val getTopicsUseCase by inject<GetTopicsUseCase>()
     val getLectureUseCase by inject<GetLectureUseCase>()
     val searchUseCase by inject<SearchUseCase>()
+    val lectureProgressUseCase by inject<LectureProgressUseCase>() // <--- ИНЖЕКТ
 
     authenticate("auth-jwt") {
+        // 1. Получить позицию
+        get("/api/lectures/{id}/progress") {
+            val lectureId = call.parameters["id"]?.toIntOrNull()
+                ?: return@get call.respond(HttpStatusCode.BadRequest)
+            val userId = call.principal<JWTPrincipal>()?.payload?.getClaim("id")?.asInt()!!
+
+            val progressDto = lectureProgressUseCase.getProgress(userId, lectureId)
+
+            if (progressDto != null) {
+                call.respond(progressDto)
+            } else {
+                call.respond(HttpStatusCode.NoContent)
+            }
+        }
+
+        // 2. Сохранить позицию
+        post("/api/lectures/{id}/progress") {
+            val lectureId = call.parameters["id"]?.toIntOrNull()
+                ?: return@post call.respond(HttpStatusCode.BadRequest)
+            val userId = call.principal<JWTPrincipal>()?.payload?.getClaim("id")?.asInt()!!
+
+            val request = try {
+                call.receive<UpdateProgressRequest>()
+            } catch (e: Exception) {
+                return@post call.respond(HttpStatusCode.BadRequest)
+            }
+
+            // Передаем и индекс, и цитату
+            lectureProgressUseCase.saveProgress(
+                userId,
+                lectureId,
+                request.progressIndex,
+                request.quote
+            )
+            call.respond(HttpStatusCode.OK)
+        }
 
         // Поиск
         get("/api/search") {
@@ -114,5 +154,6 @@ fun Route.contentRouting() {
                 call.respond(HttpStatusCode.Unauthorized)
             }
         }
+
     }
 }

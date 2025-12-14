@@ -1,16 +1,15 @@
 package org.example.data.repository
 
 import org.example.data.db.*
-import org.example.data.dto.DisciplineStatDto
-import org.example.data.dto.LeaderboardItemDto
-import org.example.data.dto.LectureDto
-import org.example.data.dto.ProgressDto
+import org.example.data.dto.*
 import org.example.domain.model.*
 import org.example.domain.repository.ContentRepository
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.TransactionManager
 import java.sql.ResultSet
+import java.time.LocalDateTime
+import kotlin.text.Typography.quote
 
 /**
  * Реализация репозитория данных.
@@ -23,6 +22,41 @@ import java.sql.ResultSet
  *    и избежать выгрузки тысяч записей в оперативную память сервера.
  */
 class ContentRepositoryImpl : ContentRepository {
+
+    // --- PROGRESS (Закладки) ---
+    override suspend fun saveLectureProgress(userId: Int, lectureId: Int, index: Int, quote: String?) = dbQuery {
+        val existing = LectureProgress.select {
+            (LectureProgress.userId eq userId) and (LectureProgress.lectureId eq lectureId)
+        }.singleOrNull()
+
+        if (existing != null) {
+            LectureProgress.update({ (LectureProgress.userId eq userId) and (LectureProgress.lectureId eq lectureId) }) {
+                it[LectureProgress.progressIndex] = index
+                it[LectureProgress.selectedText] = quote
+                it[LectureProgress.updatedAt] = LocalDateTime.now()
+            }
+        } else {
+            LectureProgress.insert {
+                it[LectureProgress.userId] = userId
+                it[LectureProgress.lectureId] = lectureId
+                it[LectureProgress.progressIndex] = index
+                it[LectureProgress.selectedText] = quote
+            }
+        }
+        Unit
+    }
+
+    override suspend fun getLectureProgress(userId: Int, lectureId: Int): LectureProgressDto? = dbQuery {
+        LectureProgress.select {
+            (LectureProgress.userId eq userId) and (LectureProgress.lectureId eq lectureId)
+        }.map {
+            LectureProgressDto(
+                lectureId = it[LectureProgress.lectureId],
+                progressIndex = it[LectureProgress.progressIndex],
+                quote = it[LectureProgress.selectedText]
+            )
+        }.singleOrNull()
+    }
 
     override suspend fun getLeaderboard(): List<LeaderboardItemDto> = dbQuery {
         // Считаем рейтинг: (Кол-во тестов * Средний балл)
