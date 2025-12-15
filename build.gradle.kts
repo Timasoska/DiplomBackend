@@ -31,6 +31,8 @@ dependencies {
     implementation("io.insert-koin:koin-ktor:3.5.0")
     implementation("at.favre.lib:bcrypt:0.10.2")
     implementation("ch.qos.logback:logback-classic:1.4.11")
+    // --- НОВАЯ ЗАВИСИМОСТЬ: Apache POI (Работа с Word) ---
+    implementation("org.apache.poi:poi-ooxml:5.2.5")
 }
 
 tasks.test {

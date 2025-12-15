@@ -4,6 +4,7 @@ import org.example.data.repository.AuthRepositoryImpl
 import org.example.data.repository.ContentRepositoryImpl
 import org.example.domain.repository.AuthRepository
 import org.example.domain.repository.ContentRepository
+import org.example.domain.service.DocumentService
 import org.example.domain.usecase.*
 import org.example.features.auth.security.PasswordService
 import org.example.features.auth.security.TokenService
@@ -36,4 +37,8 @@ val appModule = module {
     // Добавляем этот UseCase
     factory { LectureProgressUseCase(get()) }
     factory { ImportContentUseCase(get()) }
+
+    // --- ДЛЯ WORD ИМПОРТА ---
+    single { DocumentService() } // Сервис как синглтон
+    factory { UploadLectureUseCase(get()) }
 }
