@@ -398,5 +398,57 @@ class ContentRepositoryImpl : ContentRepository {
         result
     }
 
+    override suspend fun importContent(data: List<org.example.data.loader.SeedDiscipline>) = dbQuery {
+        // Мы используем ту же логику, что была в ContentLoader, но теперь она доступна через API
+        for (d in data) {
+            // 1. Дисциплина
+            val disciplineId = Disciplines.insert {
+                it[Disciplines.name] = d.name
+                it[Disciplines.description] = d.description
+            } get Disciplines.id
 
+            for (t in d.topics) {
+                // 2. Тема
+                val topicId = Topics.insert {
+                    it[Topics.name] = t.name
+                    it[Topics.disciplineId] = disciplineId
+                } get Topics.id
+
+                // 3. Лекции
+                for (l in t.lectures) {
+                    Lectures.insert {
+                        it[Lectures.title] = l.title
+                        it[Lectures.content] = l.content
+                        it[Lectures.topicId] = topicId
+                    }
+                }
+
+                // 4. Тест (если есть)
+                t.test?.let { test ->
+                    val testId = Tests.insert {
+                        it[Tests.title] = test.title
+                        it[Tests.topicId] = topicId
+                        it[Tests.timeLimit] = test.timeLimit
+                    } get Tests.id
+
+                    for (q in test.questions) {
+                        val qId = Questions.insert {
+                            it[Questions.questionText] = q.text
+                            it[Questions.difficulty] = q.difficulty
+                            it[Questions.isMultipleChoice] = q.isMultipleChoice
+                            it[Questions.testId] = testId
+                        } get Questions.id
+
+                        for (a in q.answers) {
+                            Answers.insert {
+                                it[Answers.answerText] = a.text
+                                it[Answers.isCorrect] = a.isCorrect
+                                it[Answers.questionId] = qId
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

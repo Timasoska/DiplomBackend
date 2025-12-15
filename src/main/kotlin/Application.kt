@@ -7,6 +7,7 @@ import io.ktor.server.routing.*
 import kotlinx.coroutines.launch
 import org.example.data.db.*
 import org.example.di.appModule
+import org.example.features.admin.adminRouting
 import org.example.features.auth.authRouting
 import org.example.features.content.contentRouting
 import org.example.features.testing.testingRouting
@@ -42,5 +43,7 @@ fun Application.module() {
         authRouting()
         testingRouting()
         analyticsRouting()
+
+        adminRouting() // <--- Подключаем админку
     }
 }

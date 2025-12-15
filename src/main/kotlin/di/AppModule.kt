@@ -35,4 +35,5 @@ val appModule = module {
     factory { GetLeaderboardUseCase(get()) } // <--- Добавили
     // Добавляем этот UseCase
     factory { LectureProgressUseCase(get()) }
+    factory { ImportContentUseCase(get()) }
 }

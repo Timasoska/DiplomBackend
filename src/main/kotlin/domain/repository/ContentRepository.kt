@@ -4,6 +4,7 @@ import org.example.data.dto.LeaderboardItemDto
 import org.example.data.dto.LectureDto
 import org.example.data.dto.LectureProgressDto
 import org.example.data.dto.ProgressDto
+import org.example.data.loader.SeedDiscipline
 import org.example.domain.model.Discipline
 import org.example.domain.model.Lecture
 import org.example.domain.model.Test
@@ -27,4 +28,7 @@ interface ContentRepository {
     suspend fun getLeaderboard(): List<LeaderboardItemDto>
     suspend fun saveLectureProgress(userId: Int, lectureId: Int, index: Int, quote: String?)
     suspend fun getLectureProgress(userId: Int, lectureId: Int): LectureProgressDto?
+
+    // --- ADMIN ---
+    suspend fun importContent(data: List<SeedDiscipline>)
 }
