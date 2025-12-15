@@ -8,15 +8,17 @@ import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.select
 
 class AuthRepositoryImpl : AuthRepository {
-    override suspend fun createUser(email: String, passwordHash: String): Int? = dbQuery {
+
+    override suspend fun createUser(email: String, passwordHash: String, role: String): Int? = dbQuery {
         try {
             val insertStatement = Users.insert {
                 it[Users.email] = email
                 it[Users.passwordHash] = passwordHash
+                it[Users.role] = role // <--- Пишем роль
             }
             insertStatement[Users.id]
         } catch (e: Exception) {
-            null // Если email уже занят
+            null
         }
     }
 
@@ -26,7 +28,8 @@ class AuthRepositoryImpl : AuthRepository {
                 UserRow(
                     id = it[Users.id],
                     email = it[Users.email],
-                    passwordHash = it[Users.passwordHash]
+                    passwordHash = it[Users.passwordHash],
+                    role = it[Users.role] // <--- Читаем роль
                 )
             }
             .singleOrNull()

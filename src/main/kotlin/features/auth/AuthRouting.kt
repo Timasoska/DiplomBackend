@@ -19,10 +19,11 @@ fun Route.authRouting() {
     route("/auth") {
         post("/register") {
             val request = call.receive<RegisterRequest>()
-            val token = registerUseCase(request)
+            // UseCase теперь возвращает AuthResponse (token + role) или null
+            val response = registerUseCase(request)
 
-            if (token != null) {
-                call.respond(HttpStatusCode.Created, AuthResponse(token))
+            if (response != null) {
+                call.respond(HttpStatusCode.Created, response)
             } else {
                 call.respond(HttpStatusCode.Conflict, "User already exists")
             }
@@ -30,10 +31,10 @@ fun Route.authRouting() {
 
         post("/login") {
             val request = call.receive<LoginRequest>()
-            val token = loginUseCase(request)
+            val response = loginUseCase(request)
 
-            if (token != null) {
-                call.respond(HttpStatusCode.OK, AuthResponse(token))
+            if (response != null) {
+                call.respond(HttpStatusCode.OK, response)
             } else {
                 call.respond(HttpStatusCode.Unauthorized, "Invalid credentials")
             }

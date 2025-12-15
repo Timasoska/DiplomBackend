@@ -4,16 +4,18 @@ import org.jetbrains.exposed.sql.Table
 import org.jetbrains.exposed.sql.javatime.datetime
 import java.time.LocalDateTime
 
-// 1. Пользователи
 object Users : Table("users") {
     val id = integer("user_id").autoIncrement()
     val email = varchar("email", 128).uniqueIndex()
     val passwordHash = varchar("password_hash", 256)
+    // --- НОВОЕ ПОЛЕ ---
+    // Роли: "student" или "teacher"
+    val role = varchar("role", 20).default("student")
+    // ------------------
     val createdAt = datetime("created_at").clientDefault { LocalDateTime.now() }
 
     override val primaryKey = PrimaryKey(id)
 }
-
 // 2. Дисциплины (Уголовное право и т.д.)
 object Disciplines : Table("disciplines") {
     val id = integer("discipline_id").autoIncrement()

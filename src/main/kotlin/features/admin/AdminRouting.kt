@@ -11,89 +11,97 @@ import org.koin.ktor.ext.inject
 import io.ktor.http.content.*
 import org.example.domain.usecase.UploadLectureUseCase
 import java.io.InputStream
+import io.ktor.server.auth.*
+import io.ktor.server.auth.jwt.*
+
+
 
 fun Route.adminRouting() {
     val importContentUseCase by inject<ImportContentUseCase>()
-    val uploadLectureUseCase by inject<UploadLectureUseCase>() // <--- Инжект
+    val uploadLectureUseCase by inject<UploadLectureUseCase>()
 
-    val ADMIN_SECRET = "diploma-secret-key-2025"
+    // ЗАЩИТА: Доступ только с валидным токеном
+    authenticate("auth-jwt") {
 
-    route("/api/admin") {
+        route("/api/admin") {
 
-        // JSON Import (старый метод)
-        post("/import") {
-            val secret = call.request.header("X-Admin-Secret")
-            if (secret != ADMIN_SECRET) {
-                call.respond(HttpStatusCode.Forbidden, "Access Denied")
-                return@post
+            // 1. JSON Import
+            post("/import") {
+                // ПРОВЕРКА РОЛИ
+                val principal = call.principal<JWTPrincipal>()
+                val role = principal?.payload?.getClaim("role")?.asString()
+
+                if (role != "teacher") {
+                    call.respond(HttpStatusCode.Forbidden, "Access Denied: Teachers only")
+                    return@post
+                }
+
+                val data = try {
+                    call.receive<List<SeedDiscipline>>()
+                } catch (e: Exception) {
+                    call.respond(HttpStatusCode.BadRequest, "Invalid JSON format: ${e.message}")
+                    return@post
+                }
+
+                try {
+                    importContentUseCase(data)
+                    call.respond(HttpStatusCode.OK, "Content imported successfully!")
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    call.respond(HttpStatusCode.InternalServerError, "Import failed: ${e.message}")
+                }
             }
 
-            val data = try {
-                call.receive<List<SeedDiscipline>>()
-            } catch (e: Exception) {
-                call.respond(HttpStatusCode.BadRequest, "Invalid JSON format: ${e.message}")
-                return@post
-            }
+            // 2. WORD DOCX Upload
+            post("/upload/docx") {
+                // ПРОВЕРКА РОЛИ
+                val principal = call.principal<JWTPrincipal>()
+                val role = principal?.payload?.getClaim("role")?.asString()
 
-            try {
-                importContentUseCase(data)
-                call.respond(HttpStatusCode.OK, "Content imported successfully!")
-            } catch (e: Exception) {
-                e.printStackTrace()
-                call.respond(HttpStatusCode.InternalServerError, "Import failed: ${e.message}")
-            }
-        }
+                if (role != "teacher") {
+                    call.respond(HttpStatusCode.Forbidden, "Access Denied: Teachers only")
+                    return@post
+                }
 
-        // WORD DOCX Upload (НОВЫЙ МЕТОД)
-        post("/upload/docx") {
-            // 1. Проверка прав
-            if (call.request.header("X-Admin-Secret") != ADMIN_SECRET) {
-                call.respond(HttpStatusCode.Forbidden)
-                return@post
-            }
+                val multipart = call.receiveMultipart()
+                var title = ""
+                var topicId = 0
+                var fileStream: InputStream? = null
 
-            // 2. Чтение Multipart
-            val multipart = call.receiveMultipart()
-
-            var title = ""
-            var topicId = 0
-            var fileStream: InputStream? = null
-
-            multipart.forEachPart { part ->
-                when (part) {
-                    is PartData.FormItem -> {
-                        if (part.name == "title") title = part.value
-                        if (part.name == "topicId") topicId = part.value.toIntOrNull() ?: 0
-                    }
-                    is PartData.FileItem -> {
-                        if (part.name == "file") {
-                            // Кэшируем поток в память
-                            fileStream = part.streamProvider().use { input ->
-                                input.readBytes().inputStream()
+                multipart.forEachPart { part ->
+                    when (part) {
+                        is PartData.FormItem -> {
+                            if (part.name == "title") title = part.value
+                            if (part.name == "topicId") topicId = part.value.toIntOrNull() ?: 0
+                        }
+                        is PartData.FileItem -> {
+                            if (part.name == "file") {
+                                fileStream = part.streamProvider().use { input ->
+                                    input.readBytes().inputStream()
+                                }
                             }
                         }
+                        else -> {}
                     }
-                    else -> {}
+                    part.dispose()
                 }
-                part.dispose()
-            }
 
-            if (topicId == 0 || fileStream == null) {
-                call.respond(HttpStatusCode.BadRequest, "Missing topicId or file")
-                return@post
-            }
+                if (topicId == 0 || fileStream == null) {
+                    call.respond(HttpStatusCode.BadRequest, "Missing topicId or file")
+                    return@post
+                }
 
-            // 3. Обработка
-            try {
-                uploadLectureUseCase(
-                    topicId = topicId,
-                    title = title.ifBlank { "Загруженная лекция" },
-                    fileStream = fileStream!!
-                )
-                call.respond(HttpStatusCode.OK, "File converted and saved successfully!")
-            } catch (e: Exception) {
-                e.printStackTrace()
-                call.respond(HttpStatusCode.InternalServerError, "Error processing file: ${e.message}")
+                try {
+                    uploadLectureUseCase(
+                        topicId = topicId,
+                        title = title.ifBlank { "Загруженная лекция" },
+                        fileStream = fileStream!!
+                    )
+                    call.respond(HttpStatusCode.OK, "File converted and saved successfully!")
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    call.respond(HttpStatusCode.InternalServerError, "Error processing file: ${e.message}")
+                }
             }
         }
     }
