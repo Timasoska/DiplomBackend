@@ -23,6 +23,37 @@ import org.jetbrains.exposed.sql.SqlExpressionBuilder.inList
  *    и избежать выгрузки тысяч записей в оперативную память сервера.
  */
 class ContentRepositoryImpl : ContentRepository {
+    override suspend fun getTestByLectureId(lectureId: Int): Test? = dbQuery {
+        val testRow = Tests.select { Tests.lectureId eq lectureId }.singleOrNull() ?: return@dbQuery null
+        val testId = testRow[Tests.id]
+
+        val questions = Questions.select { Questions.testId eq testId }.map { qRow ->
+            val qId = qRow[Questions.id]
+            val answers = Answers.select { Answers.questionId eq qId }.map { aRow ->
+                Answer(
+                    id = aRow[Answers.id],
+                    text = aRow[Answers.answerText],
+                    isCorrect = aRow[Answers.isCorrect]
+                )
+            }
+            Question(
+                id = qId,
+                text = qRow[Questions.questionText],
+                difficulty = qRow[Questions.difficulty],
+                isMultipleChoice = qRow[Questions.isMultipleChoice],
+                answers = answers
+            )
+        }
+
+        Test(
+            id = testId,
+            title = testRow[Tests.title],
+            topicId = testRow[Tests.topicId],
+            lectureId = testRow[Tests.lectureId], // <--- Заполняем
+            timeLimit = testRow[Tests.timeLimit],
+            questions = questions
+        )
+    }
 
     override suspend fun getFullTestByTopicId(topicId: Int): AdminTestResponse? = dbQuery {
         val testRow = Tests.select { Tests.topicId eq topicId }.singleOrNull() ?: return@dbQuery null
@@ -48,44 +79,45 @@ class ContentRepositoryImpl : ContentRepository {
             id = testId,
             title = testRow[Tests.title],
             topicId = testRow[Tests.topicId],
+            lectureId = testRow[Tests.lectureId],
             timeLimit = testRow[Tests.timeLimit],
             questions = questions
         )
     }
 
     override suspend fun saveTest(request: SaveTestRequest) = dbQuery {
-        // 1. Проверяем, есть ли уже тест у этой темы
-        val existingTest = Tests.select { Tests.topicId eq request.topicId }.singleOrNull()
+        // 1. Ищем существующий тест (по TopicId ИЛИ по LectureId)
+        val existingTest = if (request.topicId != null) {
+            Tests.select { Tests.topicId eq request.topicId }.singleOrNull()
+        } else if (request.lectureId != null) {
+            Tests.select { Tests.lectureId eq request.lectureId }.singleOrNull()
+        } else {
+            null
+        }
 
         if (existingTest != null) {
             val testId = existingTest[Tests.id]
-            // Удаляем старый тест (каскадно или вручную удаляем вопросы/ответы)
-            // Из-за ограничений внешних ключей лучше удалить саму запись теста,
-            // но тогда пропадет статистика.
-            // Для диплома проще: удаляем всё старое и создаем новое.
-
-            // Сначала удаляем попытки прохождения (статистику), т.к. тест изменился
+            // Удаляем старый тест (статистику, ответы, вопросы, сам тест)
             TestAttempts.deleteWhere { TestAttempts.testId eq testId }
 
-            // Удаляем ответы
             val questionIds = Questions.select { Questions.testId eq testId }.map { it[Questions.id] }
-            // ИСПРАВЛЕНИЕ: Используем правильный синтаксис inList
-            Answers.deleteWhere { Answers.questionId inList questionIds }
-            // Удаляем вопросы
+            if (questionIds.isNotEmpty()) {
+                Answers.deleteWhere { Answers.questionId inList questionIds }
+            }
             Questions.deleteWhere { Questions.testId eq testId }
-
-            // Удаляем сам тест
             Tests.deleteWhere { Tests.id eq testId }
         }
 
         // 2. Создаем новый тест
         val newTestId = Tests.insert {
             it[Tests.title] = request.title
-            it[Tests.topicId] = request.topicId
             it[Tests.timeLimit] = request.timeLimit
+            // Записываем либо Topic, либо Lecture (Exposed сам поймет null)
+            it[Tests.topicId] = request.topicId
+            it[Tests.lectureId] = request.lectureId
         } get Tests.id
 
-        // 3. Сохраняем вопросы и ответы
+        // 3. Сохраняем вопросы (код тот же, что был)
         for (q in request.questions) {
             val qId = Questions.insert {
                 it[Questions.questionText] = q.text
@@ -470,7 +502,8 @@ class ContentRepositoryImpl : ContentRepository {
             id = testId,
             title = testRow[Tests.title],
             topicId = testRow[Tests.topicId],
-            timeLimit = testRow[Tests.timeLimit], // <--- Читаем таймер
+            lectureId = testRow[Tests.lectureId], // <--- Добавить это
+            timeLimit = testRow[Tests.timeLimit],
             questions = questions
         )
     }

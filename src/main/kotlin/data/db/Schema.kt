@@ -49,12 +49,13 @@ object Lectures : Table("lectures") {
 object Tests : Table("tests") {
     val id = integer("test_id").autoIncrement()
     val title = varchar("title", 255)
-    val topicId = integer("topic_id").references(Topics.id)
-    /**
-     * Ограничение времени на прохождение теста в секундах.
-     * 0 или null - без ограничений.
-     */
-    val timeLimit = integer("time_limit").default(0) // <--- НОВОЕ ПОЛЕ
+
+    // ВАЖНО: Оба поля nullable, но логика приложения гарантирует, что одно из них заполнено
+    val topicId = integer("topic_id").references(Topics.id).nullable()
+    val lectureId = integer("lecture_id").references(Lectures.id).nullable() // <--- НОВОЕ
+
+    val timeLimit = integer("time_limit").default(0)
+
     override val primaryKey = PrimaryKey(id)
 }
 

@@ -30,69 +30,72 @@ object ContentLoader {
                     println("ℹ️ База данных уже содержит данные. Пропуск загрузки.")
                     return@transaction
                 }
-
                 println("📦 Начинаем загрузку данных из JSON...")
 
                 for (d in disciplines) {
-                    // Создаем Дисциплину
-                    val disciplineInsert = Disciplines.insert {
+                    val disciplineId = Disciplines.insert {
                         it[Disciplines.name] = d.name
                         it[Disciplines.description] = d.description
-                    }
-                    val disciplineId = disciplineInsert[Disciplines.id]
+                    } get Disciplines.id
 
                     for (t in d.topics) {
-                        // Создаем Тему
-                        val topicInsert = Topics.insert {
+                        val topicId = Topics.insert {
                             it[Topics.name] = t.name
                             it[Topics.disciplineId] = disciplineId
-                        }
-                        val topicId = topicInsert[Topics.id]
+                        } get Topics.id
 
-                        // Создаем Лекции
+                        // ЛЕКЦИИ
                         for (l in t.lectures) {
-                            Lectures.insert {
+                            val lectureId = Lectures.insert {
                                 it[Lectures.title] = l.title
                                 it[Lectures.content] = l.content
                                 it[Lectures.topicId] = topicId
+                            } get Lectures.id
+
+                            // --- ТЕСТ ПО ЛЕКЦИИ (Если есть) ---
+                            l.test?.let { test ->
+                                insertTest(test, topicId = null, lectureId = lectureId)
                             }
                         }
 
-                        // Создаем Тест (если есть)
+                        // --- ТЕСТ ПО ТЕМЕ (Если есть) ---
                         t.test?.let { test ->
-                            val testInsert = Tests.insert {
-                                it[Tests.title] = test.title
-                                it[Tests.topicId] = topicId
-                                it[Tests.timeLimit] = test.timeLimit // <--- Сохраняем лимит
-                            }
-                            val testId = testInsert[Tests.id]
-
-                            for (q in test.questions) {
-                                val qInsert = Questions.insert {
-                                    it[Questions.questionText] = q.text
-                                    it[Questions.difficulty] = q.difficulty // <--- Сохраняем в базу
-                                    it[Questions.isMultipleChoice] = q.isMultipleChoice // <--- Сохраняем
-                                    it[Questions.testId] = testId
-                                }
-                                val qId = qInsert[Questions.id]
-
-                                for (a in q.answers) {
-                                    Answers.insert {
-                                        it[Answers.answerText] = a.text
-                                        it[Answers.isCorrect] = a.isCorrect
-                                        it[Answers.questionId] = qId
-                                    }
-                                }
-                            }
+                            insertTest(test, topicId = topicId, lectureId = null)
                         }
                     }
                 }
-                println("✅ Данные успешно загружены из JSON! (${disciplines.size} дисциплин)")
+                println("✅ Данные успешно загружены из JSON!")
             }
 
         } catch (e: Exception) {
             println("❌ Ошибка при загрузке данных: ${e.message}")
             e.printStackTrace()
+        }
+    }
+    // Вспомогательная функция, чтобы не дублировать код вставки вопросов
+    private fun insertTest(test: org.example.data.loader.SeedTest, topicId: Int?, lectureId: Int?) {
+        val testId = Tests.insert {
+            it[Tests.title] = test.title
+            it[Tests.timeLimit] = test.timeLimit
+            it[Tests.topicId] = topicId
+            it[Tests.lectureId] = lectureId
+        } get Tests.id
+
+        for (q in test.questions) {
+            val qId = Questions.insert {
+                it[Questions.questionText] = q.text
+                it[Questions.difficulty] = q.difficulty
+                it[Questions.isMultipleChoice] = q.isMultipleChoice
+                it[Questions.testId] = testId
+            } get Questions.id
+
+            for (a in q.answers) {
+                Answers.insert {
+                    it[Answers.answerText] = a.text
+                    it[Answers.isCorrect] = a.isCorrect
+                    it[Answers.questionId] = qId
+                }
+            }
         }
     }
 }

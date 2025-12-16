@@ -45,6 +45,6 @@ val appModule = module {
     factory { DeleteLectureUseCase(get()) }
     factory { SaveTestUseCase(get()) }
     factory { GetAdminTestUseCase(get()) } // <--- Добавить
-
+    factory { GetTestByLectureUseCase(get()) }
 
 }

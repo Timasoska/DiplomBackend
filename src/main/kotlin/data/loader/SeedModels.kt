@@ -13,27 +13,28 @@ data class SeedDiscipline(
 data class SeedTopic(
     val name: String,
     val lectures: List<SeedLecture> = emptyList(),
-    val test: SeedTest? = null // Теста может и не быть
+    val test: SeedTest? = null // Тест по теме
 )
 
 @Serializable
 data class SeedLecture(
     val title: String,
-    val content: String
+    val content: String,
+    val test: SeedTest? = null // <--- НОВОЕ: Тест по лекции
 )
 
 @Serializable
 data class SeedTest(
     val title: String,
     val questions: List<SeedQuestion>,
-    val timeLimit: Int = 0 // <--- НОВОЕ ПОЛЕ (0 - безлимит)
+    val timeLimit: Int = 0
 )
 
 @Serializable
 data class SeedQuestion(
     val text: String,
-    val isMultipleChoice: Boolean = false, // <--- Добавили
-    val difficulty: Int = 1, // <--- Добавили (по умолчанию 1)
+    val isMultipleChoice: Boolean = false,
+    val difficulty: Int = 1,
     val answers: List<SeedAnswer>
 )
 

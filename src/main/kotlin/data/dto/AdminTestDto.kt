@@ -3,9 +3,10 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class SaveTestRequest(
-    val topicId: Int,
+    val topicId: Int? = null,   // Стало nullable
+    val lectureId: Int? = null, // Новое поле
     val title: String,
-    val timeLimit: Int, // В секундах
+    val timeLimit: Int,
     val questions: List<SaveQuestionRequest>
 )
 
@@ -23,12 +24,12 @@ data class SaveAnswerRequest(
     val isCorrect: Boolean
 )
 
-// --- НОВЫЙ DTO ДЛЯ ОТВЕТА ---
 @Serializable
 data class AdminTestResponse(
     val id: Int,
-    val topicId: Int,
+    val topicId: Int?,   // Стало nullable
+    val lectureId: Int?, // Новое поле
     val title: String,
     val timeLimit: Int,
-    val questions: List<SaveQuestionRequest> // Переиспользуем структуру вопроса
+    val questions: List<SaveQuestionRequest>
 )

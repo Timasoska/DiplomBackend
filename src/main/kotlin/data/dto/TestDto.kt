@@ -6,6 +6,7 @@ import kotlinx.serialization.Serializable
 data class TestDto(
     val id: Int,
     val title: String,
+    val timeLimit: Int = 0,
     val questions: List<QuestionDto>,
-    val timeLimit: Int = 0 // <--- НОВОЕ ПОЛЕ (секунды)
+    val lectureId: Int? = null // <--- Добавим, чтобы клиент знал, чей это тест
 )
