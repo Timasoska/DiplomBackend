@@ -6,16 +6,14 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.example.data.loader.SeedDiscipline
-import org.example.domain.usecase.ImportContentUseCase
 import org.koin.ktor.ext.inject
 import io.ktor.http.content.*
-import org.example.domain.usecase.UploadLectureUseCase
 import java.io.InputStream
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
+import org.example.data.dto.SaveTestRequest
 import org.example.data.dto.UpdateLectureRequest
-import org.example.domain.usecase.DeleteLectureUseCase
-import org.example.domain.usecase.UpdateLectureUseCase
+import org.example.domain.usecase.*
 
 
 fun Route.adminRouting() {
@@ -23,6 +21,7 @@ fun Route.adminRouting() {
     val uploadLectureUseCase by inject<UploadLectureUseCase>()
     val updateLectureUseCase by inject<UpdateLectureUseCase>() // <--- Инжект
     val deleteLectureUseCase by inject<DeleteLectureUseCase>() // <--- Инжект
+    val saveTestUseCase by inject<SaveTestUseCase>() // <--- Инжект
 
     // ЗАЩИТА: Доступ только с валидным токеном
     authenticate("auth-jwt") {
@@ -151,6 +150,32 @@ fun Route.adminRouting() {
                     call.respond(HttpStatusCode.OK, "Lecture deleted")
                 } catch (e: Exception) {
                     call.respond(HttpStatusCode.InternalServerError, e.message ?: "Error")
+                }
+            }
+
+            // СОХРАНЕНИЕ ТЕСТА (Создание или Обновление)
+            post("/tests") {
+                val principal = call.principal<JWTPrincipal>()
+                val role = principal?.payload?.getClaim("role")?.asString()
+
+                if (role != "teacher") {
+                    call.respond(HttpStatusCode.Forbidden, "Access Denied")
+                    return@post
+                }
+
+                val request = try {
+                    call.receive<SaveTestRequest>()
+                } catch (e: Exception) {
+                    call.respond(HttpStatusCode.BadRequest, "Invalid JSON: ${e.message}")
+                    return@post
+                }
+
+                try {
+                    saveTestUseCase(request)
+                    call.respond(HttpStatusCode.OK, "Test saved successfully")
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    call.respond(HttpStatusCode.InternalServerError, "Error saving test: ${e.message}")
                 }
             }
         }

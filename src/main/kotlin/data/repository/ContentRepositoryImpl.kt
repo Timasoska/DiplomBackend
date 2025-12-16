@@ -10,6 +10,7 @@ import org.jetbrains.exposed.sql.transactions.TransactionManager
 import java.sql.ResultSet
 import java.time.LocalDateTime
 import kotlin.text.Typography.quote
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.inList
 
 /**
  * Реализация репозитория данных.
@@ -22,6 +23,58 @@ import kotlin.text.Typography.quote
  *    и избежать выгрузки тысяч записей в оперативную память сервера.
  */
 class ContentRepositoryImpl : ContentRepository {
+
+    override suspend fun saveTest(request: SaveTestRequest) = dbQuery {
+        // 1. Проверяем, есть ли уже тест у этой темы
+        val existingTest = Tests.select { Tests.topicId eq request.topicId }.singleOrNull()
+
+        if (existingTest != null) {
+            val testId = existingTest[Tests.id]
+            // Удаляем старый тест (каскадно или вручную удаляем вопросы/ответы)
+            // Из-за ограничений внешних ключей лучше удалить саму запись теста,
+            // но тогда пропадет статистика.
+            // Для диплома проще: удаляем всё старое и создаем новое.
+
+            // Сначала удаляем попытки прохождения (статистику), т.к. тест изменился
+            TestAttempts.deleteWhere { TestAttempts.testId eq testId }
+
+            // Удаляем ответы
+            val questionIds = Questions.select { Questions.testId eq testId }.map { it[Questions.id] }
+            // ИСПРАВЛЕНИЕ: Используем правильный синтаксис inList
+            Answers.deleteWhere { Answers.questionId inList questionIds }
+            // Удаляем вопросы
+            Questions.deleteWhere { Questions.testId eq testId }
+
+            // Удаляем сам тест
+            Tests.deleteWhere { Tests.id eq testId }
+        }
+
+        // 2. Создаем новый тест
+        val newTestId = Tests.insert {
+            it[Tests.title] = request.title
+            it[Tests.topicId] = request.topicId
+            it[Tests.timeLimit] = request.timeLimit
+        } get Tests.id
+
+        // 3. Сохраняем вопросы и ответы
+        for (q in request.questions) {
+            val qId = Questions.insert {
+                it[Questions.questionText] = q.text
+                it[Questions.testId] = newTestId
+                it[Questions.difficulty] = q.difficulty
+                it[Questions.isMultipleChoice] = q.isMultipleChoice
+            } get Questions.id
+
+            for (a in q.answers) {
+                Answers.insert {
+                    it[Answers.answerText] = a.text
+                    it[Answers.questionId] = qId
+                    it[Answers.isCorrect] = a.isCorrect
+                }
+            }
+        }
+        Unit
+    }
 
     override suspend fun deleteLecture(id: Int) = dbQuery {
         // 1. Удаляем связи

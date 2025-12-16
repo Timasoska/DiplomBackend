@@ -1,9 +1,6 @@
 package org.example.domain.repository
 
-import org.example.data.dto.LeaderboardItemDto
-import org.example.data.dto.LectureDto
-import org.example.data.dto.LectureProgressDto
-import org.example.data.dto.ProgressDto
+import org.example.data.dto.*
 import org.example.data.loader.SeedDiscipline
 import org.example.domain.model.Discipline
 import org.example.domain.model.Lecture
@@ -34,4 +31,5 @@ interface ContentRepository {
 
     suspend fun updateLecture(id: Int, title: String, content: String)
     suspend fun deleteLecture(id: Int)
+    suspend fun saveTest(request: SaveTestRequest)
 }

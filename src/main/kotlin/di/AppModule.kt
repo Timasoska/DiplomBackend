@@ -43,4 +43,6 @@ val appModule = module {
     factory { UploadLectureUseCase(get()) }
     factory { UpdateLectureUseCase(get()) }
     factory { DeleteLectureUseCase(get()) }
+    factory { SaveTestUseCase(get()) }
+
 }
