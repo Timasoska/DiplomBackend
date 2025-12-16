@@ -199,6 +199,28 @@ fun Route.adminRouting() {
                     call.respond(HttpStatusCode.NoContent) // Теста нет
                 }
             }
+
+            get("/tests/lecture/{lectureId}") {
+                val principal = call.principal<JWTPrincipal>()
+                val role = principal?.payload?.getClaim("role")?.asString()
+
+                if (role != "teacher") {
+                    call.respond(HttpStatusCode.Forbidden, "Access Denied")
+                    return@get
+                }
+
+                val lectureId = call.parameters["lectureId"]?.toIntOrNull()
+                    ?: return@get call.respond(HttpStatusCode.BadRequest)
+
+                // Вызываем UseCase с именованным параметром lectureId
+                val test = getAdminTestUseCase(lectureId = lectureId)
+
+                if (test != null) {
+                    call.respond(test)
+                } else {
+                    call.respond(HttpStatusCode.NoContent)
+                }
+            }
         }
     }
 }

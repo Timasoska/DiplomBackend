@@ -9,5 +9,6 @@ data class LectureDto(
     val title: String,
     val content: String,
     val topicId: Int,
-    val isFavorite: Boolean // <--- Добавили поле
+    val isFavorite: Boolean,
+    val hasTest: Boolean = false // <--- НОВОЕ ПОЛЕ
 )

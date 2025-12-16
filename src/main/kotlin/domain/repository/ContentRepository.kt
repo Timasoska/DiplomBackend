@@ -34,4 +34,6 @@ interface ContentRepository {
     suspend fun saveTest(request: SaveTestRequest)
     suspend fun getFullTestByTopicId(topicId: Int): AdminTestResponse?
     suspend fun getTestByLectureId(lectureId: Int): Test?
+    suspend fun getFullTestByLectureId(lectureId: Int): AdminTestResponse?
+
 }
