@@ -22,6 +22,7 @@ fun Route.adminRouting() {
     val updateLectureUseCase by inject<UpdateLectureUseCase>() // <--- Инжект
     val deleteLectureUseCase by inject<DeleteLectureUseCase>() // <--- Инжект
     val saveTestUseCase by inject<SaveTestUseCase>() // <--- Инжект
+    val getAdminTestUseCase by inject<GetAdminTestUseCase>() // <--- Инжект
 
     // ЗАЩИТА: Доступ только с валидным токеном
     authenticate("auth-jwt") {
@@ -176,6 +177,26 @@ fun Route.adminRouting() {
                 } catch (e: Exception) {
                     e.printStackTrace()
                     call.respond(HttpStatusCode.InternalServerError, "Error saving test: ${e.message}")
+                }
+            }
+            // ПОЛУЧЕНИЕ ТЕСТА ДЛЯ РЕДАКТИРОВАНИЯ (С ответами)
+            get("/tests/{topicId}") {
+                val principal = call.principal<JWTPrincipal>()
+                val role = principal?.payload?.getClaim("role")?.asString()
+
+                if (role != "teacher") {
+                    call.respond(HttpStatusCode.Forbidden, "Access Denied")
+                    return@get
+                }
+
+                val topicId = call.parameters["topicId"]?.toIntOrNull()
+                    ?: return@get call.respond(HttpStatusCode.BadRequest)
+
+                val test = getAdminTestUseCase(topicId)
+                if (test != null) {
+                    call.respond(test)
+                } else {
+                    call.respond(HttpStatusCode.NoContent) // Теста нет
                 }
             }
         }

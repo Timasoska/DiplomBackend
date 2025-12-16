@@ -22,3 +22,13 @@ data class SaveAnswerRequest(
     val text: String,
     val isCorrect: Boolean
 )
+
+// --- НОВЫЙ DTO ДЛЯ ОТВЕТА ---
+@Serializable
+data class AdminTestResponse(
+    val id: Int,
+    val topicId: Int,
+    val title: String,
+    val timeLimit: Int,
+    val questions: List<SaveQuestionRequest> // Переиспользуем структуру вопроса
+)

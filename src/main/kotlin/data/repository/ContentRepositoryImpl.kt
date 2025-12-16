@@ -24,6 +24,35 @@ import org.jetbrains.exposed.sql.SqlExpressionBuilder.inList
  */
 class ContentRepositoryImpl : ContentRepository {
 
+    override suspend fun getFullTestByTopicId(topicId: Int): AdminTestResponse? = dbQuery {
+        val testRow = Tests.select { Tests.topicId eq topicId }.singleOrNull() ?: return@dbQuery null
+        val testId = testRow[Tests.id]
+
+        val questions = Questions.select { Questions.testId eq testId }.map { qRow ->
+            val qId = qRow[Questions.id]
+            val answers = Answers.select { Answers.questionId eq qId }.map { aRow ->
+                SaveAnswerRequest(
+                    text = aRow[Answers.answerText],
+                    isCorrect = aRow[Answers.isCorrect] // <--- ВАЖНО: Возвращаем правильность
+                )
+            }
+            SaveQuestionRequest(
+                text = qRow[Questions.questionText],
+                difficulty = qRow[Questions.difficulty],
+                isMultipleChoice = qRow[Questions.isMultipleChoice],
+                answers = answers
+            )
+        }
+
+        AdminTestResponse(
+            id = testId,
+            title = testRow[Tests.title],
+            topicId = testRow[Tests.topicId],
+            timeLimit = testRow[Tests.timeLimit],
+            questions = questions
+        )
+    }
+
     override suspend fun saveTest(request: SaveTestRequest) = dbQuery {
         // 1. Проверяем, есть ли уже тест у этой темы
         val existingTest = Tests.select { Tests.topicId eq request.topicId }.singleOrNull()

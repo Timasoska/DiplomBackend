@@ -32,4 +32,6 @@ interface ContentRepository {
     suspend fun updateLecture(id: Int, title: String, content: String)
     suspend fun deleteLecture(id: Int)
     suspend fun saveTest(request: SaveTestRequest)
+    suspend fun getFullTestByTopicId(topicId: Int): AdminTestResponse?
+
 }
