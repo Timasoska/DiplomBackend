@@ -23,6 +23,27 @@ import kotlin.text.Typography.quote
  */
 class ContentRepositoryImpl : ContentRepository {
 
+    override suspend fun deleteLecture(id: Int) = dbQuery {
+        // 1. Удаляем связи
+        UserFavorites.deleteWhere { UserFavorites.lectureId eq id }
+        LectureProgress.deleteWhere { LectureProgress.lectureId eq id }
+
+        // СТРОКУ С UserNotes УДАЛЯЕМ, так как таблицы больше нет
+        // UserNotes.deleteWhere { UserNotes.lectureId eq id } <--- УБРАТЬ ЭТО
+
+        // 2. Удаляем саму лекцию
+        Lectures.deleteWhere { Lectures.id eq id }
+        Unit
+    }
+
+    override suspend fun updateLecture(id: Int, title: String, content: String) = dbQuery {
+        Lectures.update({ Lectures.id eq id }) {
+            it[Lectures.title] = title
+            it[Lectures.content] = content
+        }
+        Unit
+    }
+
     // --- PROGRESS (Закладки) ---
     override suspend fun saveLectureProgress(userId: Int, lectureId: Int, index: Int, quote: String?) = dbQuery {
         val existing = LectureProgress.select {

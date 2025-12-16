@@ -13,12 +13,16 @@ import org.example.domain.usecase.UploadLectureUseCase
 import java.io.InputStream
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
-
+import org.example.data.dto.UpdateLectureRequest
+import org.example.domain.usecase.DeleteLectureUseCase
+import org.example.domain.usecase.UpdateLectureUseCase
 
 
 fun Route.adminRouting() {
     val importContentUseCase by inject<ImportContentUseCase>()
     val uploadLectureUseCase by inject<UploadLectureUseCase>()
+    val updateLectureUseCase by inject<UpdateLectureUseCase>() // <--- Инжект
+    val deleteLectureUseCase by inject<DeleteLectureUseCase>() // <--- Инжект
 
     // ЗАЩИТА: Доступ только с валидным токеном
     authenticate("auth-jwt") {
@@ -101,6 +105,52 @@ fun Route.adminRouting() {
                 } catch (e: Exception) {
                     e.printStackTrace()
                     call.respond(HttpStatusCode.InternalServerError, "Error processing file: ${e.message}")
+                }
+            }
+
+            // РЕДАКТИРОВАНИЕ ЛЕКЦИИ
+            put("/lectures/{id}") {
+                // 1. Проверка роли
+                val principal = call.principal<JWTPrincipal>()
+                val role = principal?.payload?.getClaim("role")?.asString()
+
+                if (role != "teacher") {
+                    call.respond(HttpStatusCode.Forbidden, "Access Denied")
+                    return@put
+                }
+
+                val id = call.parameters["id"]?.toIntOrNull()
+                    ?: return@put call.respond(HttpStatusCode.BadRequest)
+
+                val request = try {
+                    call.receive<UpdateLectureRequest>()
+                } catch (e: Exception) {
+                    return@put call.respond(HttpStatusCode.BadRequest)
+                }
+
+                updateLectureUseCase(id, request.title, request.content)
+                call.respond(HttpStatusCode.OK, "Lecture updated")
+            }
+
+            // УДАЛЕНИЕ
+            delete("/lectures/{id}") {
+                // 1. Проверка роли
+                val principal = call.principal<JWTPrincipal>()
+                val role = principal?.payload?.getClaim("role")?.asString()
+
+                if (role != "teacher") {
+                    call.respond(HttpStatusCode.Forbidden, "Access Denied")
+                    return@delete
+                }
+
+                val id = call.parameters["id"]?.toIntOrNull()
+                    ?: return@delete call.respond(HttpStatusCode.BadRequest)
+
+                try {
+                    deleteLectureUseCase(id)
+                    call.respond(HttpStatusCode.OK, "Lecture deleted")
+                } catch (e: Exception) {
+                    call.respond(HttpStatusCode.InternalServerError, e.message ?: "Error")
                 }
             }
         }

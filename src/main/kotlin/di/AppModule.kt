@@ -41,4 +41,6 @@ val appModule = module {
     // --- ДЛЯ WORD ИМПОРТА ---
     single { DocumentService() } // Сервис как синглтон
     factory { UploadLectureUseCase(get()) }
+    factory { UpdateLectureUseCase(get()) }
+    factory { DeleteLectureUseCase(get()) }
 }

@@ -31,4 +31,7 @@ interface ContentRepository {
 
     // --- ADMIN ---
     suspend fun importContent(data: List<SeedDiscipline>)
+
+    suspend fun updateLecture(id: Int, title: String, content: String)
+    suspend fun deleteLecture(id: Int)
 }
