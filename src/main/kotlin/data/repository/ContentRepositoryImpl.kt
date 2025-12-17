@@ -367,7 +367,25 @@ class ContentRepositoryImpl : ContentRepository {
 
     override suspend fun getAllDisciplines(): List<Discipline> = dbQuery { Disciplines.selectAll().map { Discipline(it[Disciplines.id], it[Disciplines.name], it[Disciplines.description]) } }
     override suspend fun getTopicsByDisciplineId(disciplineId: Int): List<Topic> = dbQuery { Topics.select { Topics.disciplineId eq disciplineId }.map { Topic(it[Topics.id], it[Topics.name], it[Topics.disciplineId]) } }
-    override suspend fun getLectureByTopicId(topicId: Int): List<Lecture> = dbQuery { Lectures.select { Lectures.topicId eq topicId }.map { Lecture(it[Lectures.id], it[Lectures.title], it[Lectures.content], it[Lectures.topicId]) } }
+
+    override suspend fun getLectureByTopicId(topicId: Int): List<Lecture> = dbQuery {
+        Lectures.select { Lectures.topicId eq topicId }
+            .map { row ->
+                val id = row[Lectures.id]
+
+                // --- ИСПРАВЛЕНИЕ: Проверяем наличие теста для каждой лекции в списке ---
+                val hasTest = Tests.select { Tests.lectureId eq id }.count() > 0
+
+                Lecture(
+                    id = id,
+                    title = row[Lectures.title],
+                    content = row[Lectures.content],
+                    topicId = row[Lectures.topicId],
+                    isFavorite = false, // Для списка избранное пока false (оптимизация)
+                    hasTest = hasTest   // <--- ПЕРЕДАЕМ ПРАВИЛЬНОЕ ЗНАЧЕНИЕ
+                )
+            }
+    }
     override suspend fun getLectureById(lectureId: Int, userId: Int): LectureDto? = dbQuery {
         val lectureRow = Lectures.select { Lectures.id eq lectureId }.singleOrNull() ?: return@dbQuery null
         val isFavorite = UserFavorites.select { (UserFavorites.lectureId eq lectureId) and (UserFavorites.userId eq userId) }.count() > 0
