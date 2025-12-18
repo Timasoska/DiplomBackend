@@ -25,6 +25,31 @@ fun Route.contentRouting() {
 
     val contentRepository by inject<ContentRepository>()
 
+    get("/api/files/{id}") {
+        val fileId = call.parameters["id"]?.toIntOrNull() ?: return@get
+
+        val fileRow = transaction {
+            LectureFiles.select { LectureFiles.id eq fileId }.singleOrNull()
+        }
+
+        if (fileRow != null) {
+            val file = java.io.File(fileRow[LectureFiles.filePath])
+            if (file.exists()) {
+                // Заголовок, чтобы браузер скачивал, а не открывал как текст
+                val filename = fileRow[LectureFiles.title]
+                call.response.header(
+                    HttpHeaders.ContentDisposition,
+                    ContentDisposition.Attachment.withParameter(ContentDisposition.Parameters.FileName, filename).toString()
+                )
+                call.respondFile(file)
+            } else {
+                call.respond(HttpStatusCode.NotFound, "File not found on disk")
+            }
+        } else {
+            call.respond(HttpStatusCode.NotFound, "File record not found")
+        }
+    }
+
     authenticate("auth-jwt") {
 
         // --- ЛЕКЦИИ И ТЕМЫ ---
@@ -80,26 +105,6 @@ fun Route.contentRouting() {
         get("/api/references") {
             val refs = contentRepository.getReferenceMaterials()
             call.respond(refs)
-        }
-
-        get("/api/files/{id}") {
-            val fileId = call.parameters["id"]?.toIntOrNull() ?: return@get
-
-            // Получаем путь к файлу
-            val fileRow = transaction {
-                LectureFiles.select { LectureFiles.id eq fileId }.singleOrNull()
-            }
-
-            if (fileRow != null) {
-                val file = java.io.File(fileRow[LectureFiles.filePath])
-                if (file.exists()) {
-                    call.respondFile(file)
-                } else {
-                    call.respond(HttpStatusCode.NotFound, "File not found on disk")
-                }
-            } else {
-                call.respond(HttpStatusCode.NotFound, "File record not found")
-            }
         }
 
         // --- ПРОГРЕСС И ЗАКЛАДКИ ---
