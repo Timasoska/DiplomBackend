@@ -11,8 +11,11 @@ import io.ktor.http.content.*
 import java.io.InputStream
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
+import org.example.data.dto.ReferenceMaterialDto
 import org.example.data.dto.SaveTestRequest
+import org.example.data.dto.SaveTopicRequest
 import org.example.data.dto.UpdateLectureRequest
+import org.example.domain.repository.ContentRepository
 import org.example.domain.usecase.*
 
 
@@ -23,11 +26,66 @@ fun Route.adminRouting() {
     val deleteLectureUseCase by inject<DeleteLectureUseCase>() // <--- Инжект
     val saveTestUseCase by inject<SaveTestUseCase>() // <--- Инжект
     val getAdminTestUseCase by inject<GetAdminTestUseCase>() // <--- Инжект
+    val contentRepository by inject<ContentRepository>()
+    val saveTopicUseCase by inject<SaveTopicUseCase>() // <--- Инжект
+
 
     // ЗАЩИТА: Доступ только с валидным токеном
     authenticate("auth-jwt") {
 
         route("/api/admin") {
+
+            // 1. ДОБАВИТЬ СПРАВОЧНЫЙ МАТЕРИАЛ
+            post("/references") {
+                val principal = call.principal<JWTPrincipal>()
+                if (principal?.payload?.getClaim("role")?.asString() != "teacher") {
+                    call.respond(HttpStatusCode.Forbidden)
+                    return@post
+                }
+
+                // Используем DTO или простую Map, для скорости возьмем DTO
+                // (Придется добавить этот класс в DTO, если его нет для реквеста,
+                //  или примем параметры). Давай примем параметры формы.
+                val params = call.receive<ReferenceMaterialDto>()
+                // (Мы используем DTO и для запроса, и для ответа, это ок для диплома)
+
+                contentRepository.addReferenceMaterial(params.title, params.url)
+                call.respond(HttpStatusCode.OK, "Added")
+            }
+
+            // 2. ПРИКРЕПИТЬ ФАЙЛ К ЛЕКЦИИ
+            post("/lectures/{id}/files") {
+                val principal = call.principal<JWTPrincipal>()
+                if (principal?.payload?.getClaim("role")?.asString() != "teacher") {
+                    call.respond(HttpStatusCode.Forbidden)
+                    return@post
+                }
+
+                val lectureId = call.parameters["id"]?.toIntOrNull()
+                    ?: return@post call.respond(HttpStatusCode.BadRequest)
+
+                val multipart = call.receiveMultipart()
+                multipart.forEachPart { part ->
+                    if (part is PartData.FileItem) {
+                        val fileName = part.originalFileName ?: "file"
+
+                        // Сохраняем файл в папку "uploads" внутри проекта
+                        val uploadDir = java.io.File("uploads")
+                        if (!uploadDir.exists()) uploadDir.mkdirs()
+
+                        val file = java.io.File(uploadDir, "${System.currentTimeMillis()}_$fileName")
+
+                        part.streamProvider().use { input ->
+                            file.outputStream().use { output -> input.copyTo(output) }
+                        }
+
+                        // Сохраняем путь в БД
+                        contentRepository.attachFileToLecture(lectureId, fileName, file.absolutePath)
+                    }
+                    part.dispose()
+                }
+                call.respond(HttpStatusCode.OK, "File attached")
+            }
 
             // 1. JSON Import
             post("/import") {
@@ -106,6 +164,27 @@ fun Route.adminRouting() {
                     e.printStackTrace()
                     call.respond(HttpStatusCode.InternalServerError, "Error processing file: ${e.message}")
                 }
+            }
+
+            post("/lectures/{id}/files") {
+                // Проверка учителя...
+                val lectureId = call.parameters["id"]?.toIntOrNull() ?: return@post
+
+                val multipart = call.receiveMultipart()
+                multipart.forEachPart { part ->
+                    if (part is PartData.FileItem) {
+                        val fileName = part.originalFileName ?: "file"
+                        // Сохраняем в папку uploads
+                        val file = java.io.File("uploads/$fileName")
+                        file.parentFile.mkdirs()
+                        part.streamProvider().use { input -> file.outputStream().use { output -> input.copyTo(output) } }
+
+                        // Пишем в БД
+                        contentRepository.attachFileToLecture(lectureId, fileName, file.absolutePath)
+                    }
+                    part.dispose()
+                }
+                call.respond(HttpStatusCode.OK)
             }
 
             // РЕДАКТИРОВАНИЕ ЛЕКЦИИ
@@ -221,6 +300,28 @@ fun Route.adminRouting() {
                     call.respond(HttpStatusCode.NoContent)
                 }
             }
+
+            // СОЗДАНИЕ ТЕМЫ
+            post("/topics") {
+                val principal = call.principal<JWTPrincipal>()
+                val role = principal?.payload?.getClaim("role")?.asString()
+
+                if (role != "teacher") {
+                    call.respond(HttpStatusCode.Forbidden, "Access Denied")
+                    return@post
+                }
+
+                val request = try {
+                    call.receive<SaveTopicRequest>()
+                } catch (e: Exception) {
+                    call.respond(HttpStatusCode.BadRequest, "Invalid JSON")
+                    return@post
+                }
+
+                saveTopicUseCase(request.disciplineId, request.name)
+                call.respond(HttpStatusCode.OK, "Topic created")
+            }
+
         }
     }
 }

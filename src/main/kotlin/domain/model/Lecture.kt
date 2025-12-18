@@ -9,5 +9,6 @@ data class Lecture(
     val content: String,
     val topicId: Int,
     val isFavorite: Boolean = false, // Это поле у нас не сохраняется в БД для домена, но пусть будет для совместимости
-    val hasTest: Boolean = false     // <--- ДОБАВЬ ЭТУ СТРОКУ
+    val hasTest: Boolean = false,     // <--- ДОБАВЬ ЭТУ СТРОКУ
+    val userScore: Int? = null // Оценка студента (0-100) или null, если не проходил
 )

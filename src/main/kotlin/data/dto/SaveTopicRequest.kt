@@ -1,0 +1,9 @@
+package org.example.data.dto
+
+import kotlinx.serialization.Serializable
+
+@Serializable
+data class SaveTopicRequest(
+    val disciplineId: Int,
+    val name: String
+)

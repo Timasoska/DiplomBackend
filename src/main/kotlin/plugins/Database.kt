@@ -27,6 +27,8 @@ fun Application.configureDatabases() {
             Users, Disciplines, Topics, Lectures,
             Tests, Questions, Answers, TestAttempts, UserFavorites,
             LectureProgress,
+            LectureFiles,       // <--- ВОТ ЭТО
+            ReferenceMaterials  // <--- И ЭТО
         )
     }
 }

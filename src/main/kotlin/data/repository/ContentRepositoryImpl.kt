@@ -17,6 +17,14 @@ import java.time.LocalDateTime
  */
 class ContentRepositoryImpl : ContentRepository {
 
+    override suspend fun saveTopic(disciplineId: Int, name: String) = dbQuery {
+        Topics.insert {
+            it[Topics.name] = name
+            it[Topics.disciplineId] = disciplineId
+        }
+        Unit
+    }
+
     // --- ПОЛУЧЕНИЕ ПОЛНОГО ТЕСТА (ДЛЯ УЧИТЕЛЯ) ---
 
     override suspend fun getFullTestByLectureId(lectureId: Int): AdminTestResponse? = dbQuery {
@@ -368,31 +376,108 @@ class ContentRepositoryImpl : ContentRepository {
     override suspend fun getAllDisciplines(): List<Discipline> = dbQuery { Disciplines.selectAll().map { Discipline(it[Disciplines.id], it[Disciplines.name], it[Disciplines.description]) } }
     override suspend fun getTopicsByDisciplineId(disciplineId: Int): List<Topic> = dbQuery { Topics.select { Topics.disciplineId eq disciplineId }.map { Topic(it[Topics.id], it[Topics.name], it[Topics.disciplineId]) } }
 
-    override suspend fun getLectureByTopicId(topicId: Int): List<Lecture> = dbQuery {
+    override suspend fun getLectureByTopicId(topicId: Int, userId: Int): List<Lecture> = dbQuery {
         Lectures.select { Lectures.topicId eq topicId }
             .map { row ->
                 val id = row[Lectures.id]
 
-                // --- ИСПРАВЛЕНИЕ: Проверяем наличие теста для каждой лекции в списке ---
-                val hasTest = Tests.select { Tests.lectureId eq id }.count() > 0
+                // Проверяем тест
+                val testRow = Tests.select { Tests.lectureId eq id }.singleOrNull()
+                val hasTest = testRow != null
+
+                // Считаем лучший балл юзера за этот тест (если тест есть)
+                var userScore: Int? = null
+                if (hasTest && userId != 0) {
+                    val testId = testRow!![Tests.id]
+                    // Берем максимальный балл из попыток
+                    userScore = TestAttempts
+                        .slice(TestAttempts.score.max())
+                        .select { (TestAttempts.testId eq testId) and (TestAttempts.userId eq userId) }
+                        .singleOrNull()
+                        ?.get(TestAttempts.score.max())
+                }
 
                 Lecture(
                     id = id,
                     title = row[Lectures.title],
                     content = row[Lectures.content],
                     topicId = row[Lectures.topicId],
-                    isFavorite = false, // Для списка избранное пока false (оптимизация)
-                    hasTest = hasTest   // <--- ПЕРЕДАЕМ ПРАВИЛЬНОЕ ЗНАЧЕНИЕ
+                    isFavorite = false,
+                    hasTest = hasTest,
+                    userScore = userScore // <--- Записываем балл
+                    // files пока не грузим в списке для скорости
                 )
             }
     }
+
     override suspend fun getLectureById(lectureId: Int, userId: Int): LectureDto? = dbQuery {
-        val lectureRow = Lectures.select { Lectures.id eq lectureId }.singleOrNull() ?: return@dbQuery null
-        val isFavorite = UserFavorites.select { (UserFavorites.lectureId eq lectureId) and (UserFavorites.userId eq userId) }.count() > 0
-        // Проверяем наличие теста
-        val hasTest = Tests.select { Tests.lectureId eq lectureId }.count() > 0
-        LectureDto(lectureRow[Lectures.id], lectureRow[Lectures.title], lectureRow[Lectures.content], lectureRow[Lectures.topicId], isFavorite, hasTest)
+        val lectureRow = Lectures.select { Lectures.id eq lectureId }.singleOrNull()
+            ?: return@dbQuery null
+
+        val isFavorite = UserFavorites.select {
+            (UserFavorites.lectureId eq lectureId) and (UserFavorites.userId eq userId)
+        }.count() > 0
+
+        val testRow = Tests.select { Tests.lectureId eq lectureId }.singleOrNull()
+        val hasTest = testRow != null
+
+        // Балл
+        var userScore: Int? = null
+        if (hasTest) {
+            val testId = testRow!![Tests.id]
+            userScore = TestAttempts
+                .slice(TestAttempts.score.max())
+                .select { (TestAttempts.testId eq testId) and (TestAttempts.userId eq userId) }
+                .singleOrNull()
+                ?.get(TestAttempts.score.max())
+        }
+
+        // Файлы
+        val files = LectureFiles.select { LectureFiles.lectureId eq lectureId }.map {
+            LectureFileDto(
+                id = it[LectureFiles.id],
+                title = it[LectureFiles.title],
+                url = "/api/files/${it[LectureFiles.id]}" // Ссылка на скачивание
+            )
+        }
+
+        LectureDto(
+            id = lectureRow[Lectures.id],
+            title = lectureRow[Lectures.title],
+            content = lectureRow[Lectures.content],
+            topicId = lectureRow[Lectures.topicId],
+            isFavorite = isFavorite,
+            hasTest = hasTest,
+            userScore = userScore, // <--- Новый
+            files = files          // <--- Новое
+        )
     }
+
+    // 3. Реализация справочников
+    override suspend fun getReferenceMaterials(): List<ReferenceMaterialDto> = dbQuery {
+        ReferenceMaterials.selectAll().map {
+            ReferenceMaterialDto(it[ReferenceMaterials.id], it[ReferenceMaterials.title], it[ReferenceMaterials.url])
+        }
+    }
+
+    override suspend fun addReferenceMaterial(title: String, url: String) = dbQuery {
+        ReferenceMaterials.insert {
+            it[ReferenceMaterials.title] = title
+            it[ReferenceMaterials.url] = url
+        }
+        Unit
+    }
+
+    // 4. Прикрепление файла
+    override suspend fun attachFileToLecture(lectureId: Int, title: String, filePath: String) = dbQuery {
+        LectureFiles.insert {
+            it[LectureFiles.lectureId] = lectureId
+            it[LectureFiles.title] = title
+            it[LectureFiles.filePath] = filePath
+        }
+        Unit
+    }
+
     override suspend fun addFavorite(userId: Int, lectureId: Int) = dbQuery { if (UserFavorites.select { (UserFavorites.userId eq userId) and (UserFavorites.lectureId eq lectureId) }.count() == 0L) UserFavorites.insert { it[UserFavorites.userId] = userId; it[UserFavorites.lectureId] = lectureId } }
     override suspend fun removeFavorite(userId: Int, lectureId: Int) = dbQuery { UserFavorites.deleteWhere { (UserFavorites.userId eq userId) and (UserFavorites.lectureId eq lectureId) }; Unit }
     override suspend fun getFavorites(userId: Int): List<Lecture> = dbQuery { (Lectures innerJoin UserFavorites).select { UserFavorites.userId eq userId }.map { Lecture(it[Lectures.id], it[Lectures.title], it[Lectures.content], it[Lectures.topicId], true) } }

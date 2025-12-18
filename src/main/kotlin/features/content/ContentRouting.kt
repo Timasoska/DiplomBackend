@@ -7,8 +7,12 @@ import io.ktor.server.auth.jwt.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import org.example.data.db.LectureFiles
 import org.example.data.dto.UpdateProgressRequest
+import org.example.domain.repository.ContentRepository
 import org.example.domain.usecase.*
+import org.jetbrains.exposed.sql.select
+import org.jetbrains.exposed.sql.transactions.transaction
 import org.koin.ktor.ext.inject
 
 fun Route.contentRouting() {
@@ -19,8 +23,87 @@ fun Route.contentRouting() {
     val searchUseCase by inject<SearchUseCase>()
     val lectureProgressUseCase by inject<LectureProgressUseCase>() // <--- ИНЖЕКТ
 
+    val contentRepository by inject<ContentRepository>()
+
     authenticate("auth-jwt") {
-        // 1. Получить позицию
+
+        // --- ЛЕКЦИИ И ТЕМЫ ---
+
+        get("/api/disciplines") {
+            call.respond(getDisciplinesUseCase())
+        }
+
+        get("/api/disciplines/{id}/topics") {
+            val id = call.parameters["id"]?.toIntOrNull()
+            if (id == null) {
+                call.respond(HttpStatusCode.BadRequest, "Invalid Discipline ID")
+                return@get
+            }
+            call.respond(getTopicsUseCase(id))
+        }
+
+        // Обновленный метод (с userId)
+        get("/api/topics/{id}/lectures") {
+            val id = call.parameters["id"]?.toIntOrNull()
+            if (id == null) {
+                call.respond(HttpStatusCode.BadRequest, "Invalid Topic ID")
+                return@get
+            }
+
+            val principal = call.principal<JWTPrincipal>()
+            val userId = principal?.payload?.getClaim("id")?.asInt() ?: 0
+
+            val lectures = getLectureUseCase.byTopicId(id, userId)
+            call.respond(lectures)
+        }
+
+        get("/api/lectures/{id}") {
+            val id = call.parameters["id"]?.toIntOrNull()
+            if (id == null) {
+                call.respond(HttpStatusCode.BadRequest, "Invalid Lecture ID")
+                return@get
+            }
+
+            val principal = call.principal<JWTPrincipal>()
+            val userId = principal?.payload?.getClaim("id")?.asInt()!!
+
+            val lecture = getLectureUseCase.byId(id, userId)
+            if (lecture != null) {
+                call.respond(lecture)
+            } else {
+                call.respond(HttpStatusCode.NotFound, "Lecture not found")
+            }
+        }
+
+        // --- СПРАВОЧНИКИ И ФАЙЛЫ ---
+
+        get("/api/references") {
+            val refs = contentRepository.getReferenceMaterials()
+            call.respond(refs)
+        }
+
+        get("/api/files/{id}") {
+            val fileId = call.parameters["id"]?.toIntOrNull() ?: return@get
+
+            // Получаем путь к файлу
+            val fileRow = transaction {
+                LectureFiles.select { LectureFiles.id eq fileId }.singleOrNull()
+            }
+
+            if (fileRow != null) {
+                val file = java.io.File(fileRow[LectureFiles.filePath])
+                if (file.exists()) {
+                    call.respondFile(file)
+                } else {
+                    call.respond(HttpStatusCode.NotFound, "File not found on disk")
+                }
+            } else {
+                call.respond(HttpStatusCode.NotFound, "File record not found")
+            }
+        }
+
+        // --- ПРОГРЕСС И ЗАКЛАДКИ ---
+
         get("/api/lectures/{id}/progress") {
             val lectureId = call.parameters["id"]?.toIntOrNull()
                 ?: return@get call.respond(HttpStatusCode.BadRequest)
@@ -35,7 +118,6 @@ fun Route.contentRouting() {
             }
         }
 
-        // 2. Сохранить позицию
         post("/api/lectures/{id}/progress") {
             val lectureId = call.parameters["id"]?.toIntOrNull()
                 ?: return@post call.respond(HttpStatusCode.BadRequest)
@@ -47,7 +129,6 @@ fun Route.contentRouting() {
                 return@post call.respond(HttpStatusCode.BadRequest)
             }
 
-            // Передаем и индекс, и цитату
             lectureProgressUseCase.saveProgress(
                 userId,
                 lectureId,
@@ -57,103 +138,31 @@ fun Route.contentRouting() {
             call.respond(HttpStatusCode.OK)
         }
 
-        // Поиск
+        // --- ПОИСК ---
         get("/api/search") {
             val query = call.request.queryParameters["q"] ?: ""
-            val results = searchUseCase(query)
-            call.respond(results)
+            call.respond(searchUseCase(query))
         }
 
-        // 1. Все дисциплины
-        get("/api/disciplines") {
-            val disciplines = getDisciplinesUseCase()
-            call.respond(disciplines)
+        // --- ИЗБРАННОЕ ---
+
+        get("/api/favorites") {
+            val userId = call.principal<JWTPrincipal>()?.payload?.getClaim("id")?.asInt()!!
+            call.respond(favoritesUseCase.getAll(userId))
         }
 
-        // 2. Темы конкретной дисциплины (например: /api/disciplines/1/topics)
-        get("/api/disciplines/{id}/topics") {
-            val id = call.parameters["id"]?.toIntOrNull()
-            if (id == null) {
-                call.respond(HttpStatusCode.BadRequest, "Invalid Discipline ID")
-                return@get
-            }
-            val topics = getTopicsUseCase(id)
-            call.respond(topics)
-        }
-
-        // 3. Лекции по теме
-        get("/api/topics/{id}/lectures") {
-            val id = call.parameters["id"]?.toIntOrNull()
-            if (id == null) {
-                call.respond(HttpStatusCode.BadRequest, "Invalid Topic ID")
-                return@get
-            }
-            val lectures = getLectureUseCase.byTopicId(id)
-            call.respond(lectures)
-        }
-
-        // 4. Конкретная лекция
-        get("/api/lectures/{id}") {
-            val id = call.parameters["id"]?.toIntOrNull()
-            // Достаем UserID из токена
-            val principal = call.principal<io.ktor.server.auth.jwt.JWTPrincipal>()
-            val userId = principal?.payload?.getClaim("id")?.asInt()!!
-
-            if (id == null) {
-                call.respond(HttpStatusCode.BadRequest, "Invalid Lecture ID")
-                return@get
-            }
-
-            // Передаем userId
-            val lecture = getLectureUseCase.byId(id, userId)
-
-            if (lecture != null) {
-                call.respond(lecture)
-            } else {
-                call.respond(HttpStatusCode.NotFound, "Lecture not found")
-            }
-        }
-
-        // 1. Добавить в избранное
         post("/api/favorites/{id}") {
             val lectureId = call.parameters["id"]?.toIntOrNull() ?: return@post
-
-            // Достаем ID пользователя из токена
-            val principal = call.principal<io.ktor.server.auth.jwt.JWTPrincipal>()
-            val userId = principal?.payload?.getClaim("id")?.asInt()
-
-            if (userId != null) {
-                favoritesUseCase.add(userId, lectureId)
-                call.respond(HttpStatusCode.OK, "Added to favorites")
-            } else {
-                call.respond(HttpStatusCode.Unauthorized)
-            }
+            val userId = call.principal<JWTPrincipal>()?.payload?.getClaim("id")?.asInt()!!
+            favoritesUseCase.add(userId, lectureId)
+            call.respond(HttpStatusCode.OK)
         }
 
-        // 2. Удалить из избранного
         delete("/api/favorites/{id}") {
             val lectureId = call.parameters["id"]?.toIntOrNull() ?: return@delete
-            val principal = call.principal<io.ktor.server.auth.jwt.JWTPrincipal>()
-            val userId = principal?.payload?.getClaim("id")?.asInt()
-
-            if (userId != null) {
-                favoritesUseCase.remove(userId, lectureId)
-                call.respond(HttpStatusCode.OK, "Removed from favorites")
-            }
+            val userId = call.principal<JWTPrincipal>()?.payload?.getClaim("id")?.asInt()!!
+            favoritesUseCase.remove(userId, lectureId)
+            call.respond(HttpStatusCode.OK)
         }
-
-        // 3. Получить список избранного
-        get("/api/favorites") {
-            val principal = call.principal<io.ktor.server.auth.jwt.JWTPrincipal>()
-            val userId = principal?.payload?.getClaim("id")?.asInt()
-
-            if (userId != null) {
-                val favorites = favoritesUseCase.getAll(userId)
-                call.respond(favorites)
-            } else {
-                call.respond(HttpStatusCode.Unauthorized)
-            }
-        }
-
     }
 }

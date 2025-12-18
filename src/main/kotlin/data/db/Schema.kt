@@ -126,3 +126,22 @@ object LectureProgress : Table("lecture_progress") {
         uniqueIndex(userId, lectureId)
     }
 }
+
+// 11. Файлы лекций (НОВАЯ)
+object LectureFiles : Table("lecture_files") {
+    val id = integer("file_id").autoIncrement()
+    val lectureId = integer("lecture_id").references(Lectures.id)
+    val title = varchar("title", 255) // Название файла для отображения
+    val filePath = varchar("file_path", 500) // Путь на сервере
+
+    override val primaryKey = PrimaryKey(id)
+}
+
+// 12. Справочные материалы (НОВАЯ)
+object ReferenceMaterials : Table("reference_materials") {
+    val id = integer("ref_id").autoIncrement()
+    val title = varchar("title", 255) // Например: "Уголовный кодекс РФ"
+    val url = varchar("url", 500) // Ссылка на документ (КонсультантПлюс или PDF на сервере)
+
+    override val primaryKey = PrimaryKey(id)
+}

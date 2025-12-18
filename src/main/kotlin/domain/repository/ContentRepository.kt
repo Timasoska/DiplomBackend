@@ -11,7 +11,7 @@ interface ContentRepository {
     suspend fun getAllDisciplines(): List<Discipline>
     // Новые методы
     suspend fun getTopicsByDisciplineId(disciplineId: Int): List<Topic>
-    suspend fun getLectureByTopicId(topicId: Int): List<Lecture> // Или одна лекция на тему, зависит от логики. Сделаем список.
+    suspend fun getLectureByTopicId(topicId: Int, userId: Int): List<Lecture>
     suspend fun getLectureById(lectureId: Int, userId: Int): LectureDto?
     suspend fun addFavorite(userId: Int, lectureId: Int)
     suspend fun removeFavorite(userId: Int, lectureId: Int)
@@ -35,5 +35,12 @@ interface ContentRepository {
     suspend fun getFullTestByTopicId(topicId: Int): AdminTestResponse?
     suspend fun getTestByLectureId(lectureId: Int): Test?
     suspend fun getFullTestByLectureId(lectureId: Int): AdminTestResponse?
+
+    suspend fun getReferenceMaterials(): List<ReferenceMaterialDto>
+    suspend fun addReferenceMaterial(title: String, url: String)
+
+    // Метод для прикрепления файла (админка)
+    suspend fun attachFileToLecture(lectureId: Int, title: String, filePath: String)
+    suspend fun saveTopic(disciplineId: Int, name: String)
 
 }
