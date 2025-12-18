@@ -136,12 +136,3 @@ object LectureFiles : Table("lecture_files") {
 
     override val primaryKey = PrimaryKey(id)
 }
-
-// 12. Справочные материалы (НОВАЯ)
-object ReferenceMaterials : Table("reference_materials") {
-    val id = integer("ref_id").autoIncrement()
-    val title = varchar("title", 255) // Например: "Уголовный кодекс РФ"
-    val url = varchar("url", 500) // Ссылка на документ (КонсультантПлюс или PDF на сервере)
-
-    override val primaryKey = PrimaryKey(id)
-}

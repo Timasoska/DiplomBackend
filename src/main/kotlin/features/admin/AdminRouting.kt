@@ -32,25 +32,6 @@ fun Route.adminRouting() {
     authenticate("auth-jwt") {
 
         route("/api/admin") {
-
-            // 1. ДОБАВИТЬ СПРАВОЧНЫЙ МАТЕРИАЛ
-            post("/references") {
-                val principal = call.principal<JWTPrincipal>()
-                if (principal?.payload?.getClaim("role")?.asString() != "teacher") {
-                    call.respond(HttpStatusCode.Forbidden)
-                    return@post
-                }
-
-                // Используем DTO или простую Map, для скорости возьмем DTO
-                // (Придется добавить этот класс в DTO, если его нет для реквеста,
-                //  или примем параметры). Давай примем параметры формы.
-                val params = call.receive<ReferenceMaterialDto>()
-                // (Мы используем DTO и для запроса, и для ответа, это ок для диплома)
-
-                contentRepository.addReferenceMaterial(params.title, params.url)
-                call.respond(HttpStatusCode.OK, "Added")
-            }
-
             // 2. ПРИКРЕПИТЬ ФАЙЛ К ЛЕКЦИИ
             post("/lectures/{id}/files") {
                 val principal = call.principal<JWTPrincipal>()

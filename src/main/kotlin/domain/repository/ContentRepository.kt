@@ -36,9 +36,6 @@ interface ContentRepository {
     suspend fun getTestByLectureId(lectureId: Int): Test?
     suspend fun getFullTestByLectureId(lectureId: Int): AdminTestResponse?
 
-    suspend fun getReferenceMaterials(): List<ReferenceMaterialDto>
-    suspend fun addReferenceMaterial(title: String, url: String)
-
     // Метод для прикрепления файла (админка)
     suspend fun attachFileToLecture(lectureId: Int, title: String, filePath: String)
     suspend fun saveTopic(disciplineId: Int, name: String)

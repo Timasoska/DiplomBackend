@@ -28,7 +28,6 @@ fun Application.configureDatabases() {
             Tests, Questions, Answers, TestAttempts, UserFavorites,
             LectureProgress,
             LectureFiles,       // <--- ВОТ ЭТО
-            ReferenceMaterials  // <--- И ЭТО
         )
     }
 }

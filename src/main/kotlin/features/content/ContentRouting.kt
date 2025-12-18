@@ -100,13 +100,6 @@ fun Route.contentRouting() {
             }
         }
 
-        // --- СПРАВОЧНИКИ И ФАЙЛЫ ---
-
-        get("/api/references") {
-            val refs = contentRepository.getReferenceMaterials()
-            call.respond(refs)
-        }
-
         // --- ПРОГРЕСС И ЗАКЛАДКИ ---
 
         get("/api/lectures/{id}/progress") {
