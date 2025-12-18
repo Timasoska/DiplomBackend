@@ -1,6 +1,7 @@
 package org.example.data.repository
 
 import org.example.data.db.*
+import org.example.data.db.Questions.testId
 import org.example.data.dto.*
 import org.example.data.loader.SeedDiscipline
 import org.example.domain.model.*
@@ -16,6 +17,59 @@ import java.time.LocalDateTime
  * Реализация репозитория данных (Backend).
  */
 class ContentRepositoryImpl : ContentRepository {
+
+    override suspend fun updateTopic(id: Int, name: String) = dbQuery {
+        Topics.update({ Topics.id eq id }) {
+            it[Topics.name] = name
+        }
+        Unit
+    }
+
+    override suspend fun deleteTopic(id: Int) = dbQuery {
+        println("🗑️ [DELETE TOPIC] Starting deletion for Topic ID: $id")
+
+        // 1. Получаем список ID лекций в этой теме
+        val lectureIds = Lectures.select { Lectures.topicId eq id }.map { it[Lectures.id] }
+        println("   -> Found ${lectureIds.size} lectures to delete")
+
+        // 2. Получаем список ID тестов (Привязанных к теме ИЛИ к лекциям этой темы)
+        val testIds = Tests.select {
+            (Tests.topicId eq id) or (Tests.lectureId inList lectureIds)
+        }.map { it[Tests.id] }
+        println("   -> Found ${testIds.size} tests to delete")
+
+        // 3. Удаляем ТЕСТЫ и их внутренности
+        if (testIds.isNotEmpty()) {
+            // Статистика попыток
+            TestAttempts.deleteWhere { testId inList testIds }
+
+            // Вопросы и Ответы
+            val questionIds = Questions.select { testId inList testIds }.map { it[Questions.id] }
+            if (questionIds.isNotEmpty()) {
+                Answers.deleteWhere { questionId inList questionIds }
+            }
+            Questions.deleteWhere { testId inList testIds }
+
+            // Сами тесты
+            Tests.deleteWhere { Tests.id inList testIds }
+            println("   -> Tests data cleared")
+        }
+
+        // 4. Удаляем ЛЕКЦИИ и их связи
+        if (lectureIds.isNotEmpty()) {
+            UserFavorites.deleteWhere { lectureId inList lectureIds }
+            LectureProgress.deleteWhere { lectureId inList lectureIds }
+            LectureFiles.deleteWhere { lectureId inList lectureIds } // Если добавляли эту таблицу
+
+            Lectures.deleteWhere { topicId eq id }
+            println("   -> Lectures data cleared")
+        }
+
+        // 5. Удаляем саму ТЕМУ
+        Topics.deleteWhere { Topics.id eq id }
+        println("✅ [DELETE TOPIC] Topic $id deleted successfully")
+        Unit
+    }
 
     override suspend fun saveTopic(disciplineId: Int, name: String) = dbQuery {
         Topics.insert {

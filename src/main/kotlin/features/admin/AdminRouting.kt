@@ -11,10 +11,7 @@ import io.ktor.http.content.*
 import java.io.InputStream
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
-import org.example.data.dto.ReferenceMaterialDto
-import org.example.data.dto.SaveTestRequest
-import org.example.data.dto.SaveTopicRequest
-import org.example.data.dto.UpdateLectureRequest
+import org.example.data.dto.*
 import org.example.domain.repository.ContentRepository
 import org.example.domain.usecase.*
 
@@ -28,7 +25,8 @@ fun Route.adminRouting() {
     val getAdminTestUseCase by inject<GetAdminTestUseCase>() // <--- Инжект
     val contentRepository by inject<ContentRepository>()
     val saveTopicUseCase by inject<SaveTopicUseCase>() // <--- Инжект
-
+    val updateTopicUseCase by inject<UpdateTopicUseCase>() // <--- Инжект
+    val deleteTopicUseCase by inject<DeleteTopicUseCase>() // <--- Инжект
 
     // ЗАЩИТА: Доступ только с валидным токеном
     authenticate("auth-jwt") {
@@ -322,6 +320,63 @@ fun Route.adminRouting() {
                 call.respond(HttpStatusCode.OK, "Topic created")
             }
 
+            // РЕДАКТИРОВАНИЕ ТЕМЫ (Название)
+            put("/topics/{id}") {
+                val logPrefix = "[API UPDATE TOPIC]"
+                try {
+                    // Проверка роли
+                    val principal = call.principal<JWTPrincipal>()
+                    val role = principal?.payload?.getClaim("role")?.asString()
+                    if (role != "teacher") {
+                        call.application.environment.log.warn("$logPrefix Access denied for user ${principal?.payload?.subject}")
+                        call.respond(HttpStatusCode.Forbidden)
+                        return@put
+                    }
+
+                    val id = call.parameters["id"]?.toIntOrNull()
+                        ?: return@put call.respond(HttpStatusCode.BadRequest, "Invalid ID")
+
+                    val request = call.receive<UpdateTopicRequest>()
+
+                    updateTopicUseCase(id, request.name)
+
+                    call.application.environment.log.info("$logPrefix Topic $id updated to '${request.name}'")
+                    call.respond(HttpStatusCode.OK, "Topic updated")
+
+                } catch (e: Exception) {
+                    call.application.environment.log.error("$logPrefix Error: ${e.localizedMessage}")
+                    call.respond(HttpStatusCode.InternalServerError, e.localizedMessage ?: "Unknown error")
+                }
+            }
+
+            // УДАЛЕНИЕ ТЕМЫ
+            delete("/topics/{id}") {
+                val logPrefix = "[API DELETE TOPIC]"
+                try {
+                    val principal = call.principal<JWTPrincipal>()
+                    val role = principal?.payload?.getClaim("role")?.asString()
+                    if (role != "teacher") {
+                        call.application.environment.log.warn("$logPrefix Access denied")
+                        call.respond(HttpStatusCode.Forbidden)
+                        return@delete
+                    }
+
+                    val id = call.parameters["id"]?.toIntOrNull()
+                        ?: return@delete call.respond(HttpStatusCode.BadRequest, "Invalid ID")
+
+                    call.application.environment.log.info("$logPrefix Request received for ID: $id")
+
+                    deleteTopicUseCase(id)
+
+                    call.application.environment.log.info("$logPrefix Success for ID: $id")
+                    call.respond(HttpStatusCode.OK, "Topic deleted")
+
+                } catch (e: Exception) {
+                    call.application.environment.log.error("$logPrefix Error: ${e.localizedMessage}")
+                    e.printStackTrace() // Печатаем полный стек в консоль
+                    call.respond(HttpStatusCode.InternalServerError, "Failed to delete: ${e.localizedMessage}")
+                }
+            }
         }
     }
 }

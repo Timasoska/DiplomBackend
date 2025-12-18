@@ -43,4 +43,7 @@ interface ContentRepository {
     suspend fun attachFileToLecture(lectureId: Int, title: String, filePath: String)
     suspend fun saveTopic(disciplineId: Int, name: String)
 
+    suspend fun updateTopic(id: Int, name: String)
+    suspend fun deleteTopic(id: Int)
+
 }
