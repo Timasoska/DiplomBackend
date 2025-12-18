@@ -507,21 +507,6 @@ class ContentRepositoryImpl : ContentRepository {
         )
     }
 
-    // 3. Реализация справочников
-    override suspend fun getReferenceMaterials(): List<ReferenceMaterialDto> = dbQuery {
-        ReferenceMaterials.selectAll().map {
-            ReferenceMaterialDto(it[ReferenceMaterials.id], it[ReferenceMaterials.title], it[ReferenceMaterials.url])
-        }
-    }
-
-    override suspend fun addReferenceMaterial(title: String, url: String) = dbQuery {
-        ReferenceMaterials.insert {
-            it[ReferenceMaterials.title] = title
-            it[ReferenceMaterials.url] = url
-        }
-        Unit
-    }
-
     // 4. Прикрепление файла
     override suspend fun attachFileToLecture(lectureId: Int, title: String, filePath: String) = dbQuery {
         LectureFiles.insert {
