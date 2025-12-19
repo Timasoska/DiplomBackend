@@ -60,11 +60,19 @@ fun Route.contentRouting() {
 
         get("/api/disciplines/{id}/topics") {
             val id = call.parameters["id"]?.toIntOrNull()
+
+            // ВОТ ПОЛНЫЙ БЛОК:
             if (id == null) {
                 call.respond(HttpStatusCode.BadRequest, "Invalid Discipline ID")
                 return@get
             }
-            call.respond(getTopicsUseCase(id))
+
+            // Получаем userId (если не авторизован - 0)
+            val principal = call.principal<JWTPrincipal>()
+            val userId = principal?.payload?.getClaim("id")?.asInt() ?: 0
+
+            val topics = getTopicsUseCase(id, userId)
+            call.respond(topics)
         }
 
         // Обновленный метод (с userId)

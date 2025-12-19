@@ -428,8 +428,39 @@ class ContentRepositoryImpl : ContentRepository {
     }
 
     override suspend fun getAllDisciplines(): List<Discipline> = dbQuery { Disciplines.selectAll().map { Discipline(it[Disciplines.id], it[Disciplines.name], it[Disciplines.description]) } }
-    override suspend fun getTopicsByDisciplineId(disciplineId: Int): List<Topic> = dbQuery { Topics.select { Topics.disciplineId eq disciplineId }.map { Topic(it[Topics.id], it[Topics.name], it[Topics.disciplineId]) } }
+    override suspend fun getTopicsByDisciplineId(disciplineId: Int, userId: Int): List<Topic> = dbQuery {
+        Topics.select { Topics.disciplineId eq disciplineId }
+            .map { row ->
+                val topicId = row[Topics.id]
 
+                // 1. Всего лекций в теме
+                val totalLectures = Lectures.select { Lectures.topicId eq topicId }.count()
+
+                // 2. Прочитано лекций (есть запись в LectureProgress)
+                // Нам нужно сделать join или подзапрос. Проще всего посчитать через count с условием.
+                // Ищем лекции этой темы, которые есть в таблице прогресса у этого юзера
+                val readLectures = (Lectures innerJoin LectureProgress)
+                    .select {
+                        (Lectures.topicId eq topicId) and
+                                (LectureProgress.userId eq userId)
+                    }
+                    .count()
+
+                // 3. Считаем процент
+                val progressPercent = if (totalLectures > 0) {
+                    ((readLectures.toDouble() / totalLectures.toDouble()) * 100).toInt()
+                } else {
+                    0
+                }
+
+                Topic(
+                    id = topicId,
+                    name = row[Topics.name],
+                    disciplineId = row[Topics.disciplineId],
+                    progress = progressPercent // <--- Записываем
+                )
+            }
+    }
     override suspend fun getLectureByTopicId(topicId: Int, userId: Int): List<Lecture> = dbQuery {
         Lectures.select { Lectures.topicId eq topicId }
             .map { row ->
@@ -439,16 +470,19 @@ class ContentRepositoryImpl : ContentRepository {
                 val testRow = Tests.select { Tests.lectureId eq id }.singleOrNull()
                 val hasTest = testRow != null
 
-                // Считаем лучший балл юзера за этот тест (если тест есть)
                 var userScore: Int? = null
                 if (hasTest && userId != 0) {
                     val testId = testRow!![Tests.id]
-                    // Берем максимальный балл из попыток
-                    userScore = TestAttempts
-                        .slice(TestAttempts.score.max())
+
+                    // ИСПРАВЛЕНИЕ: Берем ПОСЛЕДНЮЮ попытку, а не максимальную
+                    // Сортируем по дате убывания и берем первую запись
+                    val lastAttempt = TestAttempts
                         .select { (TestAttempts.testId eq testId) and (TestAttempts.userId eq userId) }
+                        .orderBy(TestAttempts.attemptedAt to SortOrder.DESC)
+                        .limit(1)
                         .singleOrNull()
-                        ?.get(TestAttempts.score.max())
+
+                    userScore = lastAttempt?.get(TestAttempts.score)
                 }
 
                 Lecture(
@@ -475,15 +509,19 @@ class ContentRepositoryImpl : ContentRepository {
         val testRow = Tests.select { Tests.lectureId eq lectureId }.singleOrNull()
         val hasTest = testRow != null
 
-        // Балл
         var userScore: Int? = null
-        if (hasTest) {
+        if (hasTest && userId != 0) {
             val testId = testRow!![Tests.id]
-            userScore = TestAttempts
-                .slice(TestAttempts.score.max())
+
+            // ИСПРАВЛЕНИЕ: Берем ПОСЛЕДНЮЮ попытку, а не максимальную
+            // Сортируем по дате убывания и берем первую запись
+            val lastAttempt = TestAttempts
                 .select { (TestAttempts.testId eq testId) and (TestAttempts.userId eq userId) }
+                .orderBy(TestAttempts.attemptedAt to SortOrder.DESC)
+                .limit(1)
                 .singleOrNull()
-                ?.get(TestAttempts.score.max())
+
+            userScore = lastAttempt?.get(TestAttempts.score)
         }
 
         // Файлы

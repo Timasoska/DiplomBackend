@@ -10,7 +10,7 @@ import org.example.domain.model.Topic
 interface ContentRepository {
     suspend fun getAllDisciplines(): List<Discipline>
     // Новые методы
-    suspend fun getTopicsByDisciplineId(disciplineId: Int): List<Topic>
+    suspend fun getTopicsByDisciplineId(disciplineId: Int, userId: Int): List<Topic>
     suspend fun getLectureByTopicId(topicId: Int, userId: Int): List<Lecture>
     suspend fun getLectureById(lectureId: Int, userId: Int): LectureDto?
     suspend fun addFavorite(userId: Int, lectureId: Int)

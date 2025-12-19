@@ -32,7 +32,9 @@ class GetRecommendationsUseCase(private val repository: ContentRepository) {
         val allDisciplines = repository.getAllDisciplines()
 
         allDisciplines.forEach { discipline ->
-            val topics = repository.getTopicsByDisciplineId(discipline.id)
+            // ИСПРАВЛЕНИЕ: Добавили userId вторым аргументом
+            val topics = repository.getTopicsByDisciplineId(discipline.id, userId)
+
             topicsToRepeat.addAll(topics.filter { it.id in badTopicIds })
         }
 
