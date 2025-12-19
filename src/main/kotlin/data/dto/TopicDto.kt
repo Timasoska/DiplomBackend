@@ -7,5 +7,5 @@ data class TopicDto(
     val id: Int,
     val name: String,
     val disciplineId: Int,
-    val progress: Int = 0 // <--- НОВОЕ ПОЛЕ (0-100%)
+    val progress: Int? = null // <--- СТАЛО NULLABLE
 )

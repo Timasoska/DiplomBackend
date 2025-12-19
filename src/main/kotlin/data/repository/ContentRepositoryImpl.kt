@@ -433,31 +433,33 @@ class ContentRepositoryImpl : ContentRepository {
             .map { row ->
                 val topicId = row[Topics.id]
 
-                // 1. Всего лекций в теме
-                val totalLectures = Lectures.select { Lectures.topicId eq topicId }.count()
+                // --- НОВАЯ ЛОГИКА: Оценка за тест по теме ---
 
-                // 2. Прочитано лекций (есть запись в LectureProgress)
-                // Нам нужно сделать join или подзапрос. Проще всего посчитать через count с условием.
-                // Ищем лекции этой темы, которые есть в таблице прогресса у этого юзера
-                val readLectures = (Lectures innerJoin LectureProgress)
-                    .select {
-                        (Lectures.topicId eq topicId) and
-                                (LectureProgress.userId eq userId)
-                    }
-                    .count()
+                // 1. Ищем тест, привязанный к этой теме (lectureId is NULL)
+                val testRow = Tests
+                    .select { (Tests.topicId eq topicId) and (Tests.lectureId.isNull()) }
+                    .singleOrNull()
 
-                // 3. Считаем процент
-                val progressPercent = if (totalLectures > 0) {
-                    ((readLectures.toDouble() / totalLectures.toDouble()) * 100).toInt()
-                } else {
-                    0
+                var topicScore: Int? = null
+
+                if (testRow != null) {
+                    val testId = testRow[Tests.id]
+
+                    val lastAttempt = TestAttempts
+                        .select { (TestAttempts.testId eq testId) and (TestAttempts.userId eq userId) }
+                        .orderBy(TestAttempts.attemptedAt to SortOrder.DESC)
+                        .limit(1)
+                        .singleOrNull()
+
+                    // ИЗМЕНЕНИЕ: Убрали '?: 0'. Если попытки нет, будет null.
+                    topicScore = lastAttempt?.get(TestAttempts.score)
                 }
 
                 Topic(
                     id = topicId,
                     name = row[Topics.name],
                     disciplineId = row[Topics.disciplineId],
-                    progress = progressPercent // <--- Записываем
+                    progress = topicScore // <--- Передаем null или число
                 )
             }
     }
