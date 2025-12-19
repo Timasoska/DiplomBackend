@@ -12,6 +12,7 @@ import org.example.features.auth.authRouting
 import org.example.features.content.contentRouting
 import org.example.features.testing.testingRouting
 import org.example.features.analytics.analyticsRouting
+import org.example.features.content.groupRouting
 import org.example.plugins.configureDatabases
 import org.example.plugins.configureSecurity
 import org.jetbrains.exposed.sql.insert
@@ -45,5 +46,6 @@ fun Application.module() {
         analyticsRouting()
 
         adminRouting() // <--- Подключаем админку
+        groupRouting() // <--- ДОБАВИТЬ ЭТУ СТРОКУ!
     }
 }

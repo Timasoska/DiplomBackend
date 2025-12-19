@@ -136,3 +136,24 @@ object LectureFiles : Table("lecture_files") {
 
     override val primaryKey = PrimaryKey(id)
 }
+
+// 12. Группы студентов
+object StudentGroups : Table("student_groups") {
+    val id = integer("group_id").autoIncrement()
+    val name = varchar("name", 255) // Например: "ЮР-101 (2025)"
+    val teacherId = integer("teacher_id").references(Users.id) // Создатель группы
+    val disciplineId = integer("discipline_id").references(Disciplines.id) // Предмет
+    val inviteCode = varchar("invite_code", 20).uniqueIndex() // Уникальный код для входа
+    val createdAt = datetime("created_at").clientDefault { LocalDateTime.now() }
+
+    override val primaryKey = PrimaryKey(id)
+}
+
+// 13. Члены группы (Связь Многие-ко-Многим)
+object GroupMembers : Table("group_members") {
+    val userId = integer("user_id").references(Users.id)
+    val groupId = integer("group_id").references(StudentGroups.id)
+    val joinedAt = datetime("joined_at").clientDefault { LocalDateTime.now() }
+
+    override val primaryKey = PrimaryKey(userId, groupId)
+}

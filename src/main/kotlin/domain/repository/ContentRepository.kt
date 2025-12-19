@@ -43,4 +43,10 @@ interface ContentRepository {
     suspend fun updateTopic(id: Int, name: String)
     suspend fun deleteTopic(id: Int)
 
+    // ГРУППЫ
+    suspend fun createGroup(teacherId: Int, disciplineId: Int, name: String): String // Возвращает inviteCode
+    suspend fun joinGroup(studentId: Int, inviteCode: String): Result<Unit>
+    suspend fun getTeacherGroups(teacherId: Int): List<TeacherGroupDto>
+    suspend fun getGroupRiskAnalytics(groupId: Int): List<StudentRiskDto>
+
 }

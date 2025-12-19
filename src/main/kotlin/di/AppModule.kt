@@ -49,6 +49,7 @@ val appModule = module {
     factory { SaveTopicUseCase(get()) }
     factory { UpdateTopicUseCase(get()) } // <--- Добавить
     factory { DeleteTopicUseCase(get()) } // <--- Добавить
+    factory { GroupUseCase(get()) }
 
 
 }

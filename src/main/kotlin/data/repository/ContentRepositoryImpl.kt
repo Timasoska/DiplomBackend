@@ -12,6 +12,14 @@ import org.jetbrains.exposed.sql.SqlExpressionBuilder.inList
 import java.sql.Connection
 import java.sql.ResultSet
 import java.time.LocalDateTime
+import io.ktor.http.*
+import io.ktor.server.application.*
+import io.ktor.server.auth.*
+import io.ktor.server.auth.jwt.*
+import io.ktor.server.request.*
+import io.ktor.server.response.*
+import io.ktor.server.routing.*
+import java.util.*
 
 /**
  * Реализация репозитория данных (Backend).
@@ -567,4 +575,152 @@ class ContentRepositoryImpl : ContentRepository {
         (Answers innerJoin Questions).slice(Answers.questionId, Answers.id).select { (Questions.testId eq testId) and (Answers.isCorrect eq true) }.forEach { result.computeIfAbsent(it[Answers.questionId]) { mutableListOf() }.add(it[Answers.id]) }
         result
     }
+
+    override suspend fun createGroup(teacherId: Int, disciplineId: Int, name: String): String = dbQuery {
+        // Генерируем простой уникальный код (например, 6 символов)
+        val code = UUID.randomUUID().toString().substring(0, 6).uppercase()
+
+        StudentGroups.insert {
+            it[StudentGroups.teacherId] = teacherId
+            it[StudentGroups.disciplineId] = disciplineId
+            it[StudentGroups.name] = name
+            it[StudentGroups.inviteCode] = code
+        }
+        code
+    }
+
+    override suspend fun joinGroup(studentId: Int, inviteCode: String): Result<Unit> = dbQuery {
+        val group = StudentGroups.select { StudentGroups.inviteCode eq inviteCode }.singleOrNull()
+            ?: return@dbQuery Result.failure(Exception("Group not found"))
+
+        val groupId = group[StudentGroups.id]
+
+        // Проверяем, не вступил ли уже
+        val exists = GroupMembers.select {
+            (GroupMembers.userId eq studentId) and (GroupMembers.groupId eq groupId)
+        }.count() > 0
+
+        if (!exists) {
+            GroupMembers.insert {
+                it[GroupMembers.userId] = studentId
+                it[GroupMembers.groupId] = groupId
+            }
+        }
+        Result.success(Unit)
+    }
+
+    override suspend fun getTeacherGroups(teacherId: Int): List<TeacherGroupDto> = dbQuery {
+        (StudentGroups innerJoin Disciplines)
+            .select { StudentGroups.teacherId eq teacherId }
+            .map { row ->
+                val groupId = row[StudentGroups.id]
+                val count = GroupMembers.select { GroupMembers.groupId eq groupId }.count().toInt()
+
+                TeacherGroupDto(
+                    id = groupId,
+                    name = row[StudentGroups.name],
+                    disciplineName = row[Disciplines.name],
+                    inviteCode = row[StudentGroups.inviteCode],
+                    studentCount = count
+                )
+            }
+    }
+
+    /**
+     * Реализация Risk Clustering (Кластеризация рисков).
+     * 1. Находит всех студентов группы.
+     * 2. Фильтрует оценки ТОЛЬКО по предмету этой группы.
+     * 3. Считает Среднее и Тренд (Линейная регрессия).
+     * 4. Присваивает статус (Green/Yellow/Red).
+     */
+    override suspend fun getGroupRiskAnalytics(groupId: Int): List<StudentRiskDto> = dbQuery {
+        // 1. Узнаем дисциплину группы
+        val disciplineId = StudentGroups.slice(StudentGroups.disciplineId)
+            .select { StudentGroups.id eq groupId }
+            .singleOrNull()
+            ?.get(StudentGroups.disciplineId) ?: return@dbQuery emptyList()
+
+        // 2. Получаем список студентов
+        val students = (Users innerJoin GroupMembers)
+            .slice(Users.id, Users.email)
+            .select { GroupMembers.groupId eq groupId }
+            .map { it[Users.id] to it[Users.email] }
+
+        val result = mutableListOf<StudentRiskDto>()
+
+        for ((studentId, email) in students) {
+            // 3. Выбираем попытки тестов ТОЛЬКО по этой дисциплине
+            // Join: TestAttempts -> Tests -> Topics (где disciplineId совпадает)
+            // Учитываем и тесты лекций, и тесты тем
+
+            // Сложный запрос через API Exposed или через Raw SQL.
+            // Для надежности используем логику фильтрации в коде (так как данных не миллионы).
+
+            // Получаем все ID тестов, относящихся к этой дисциплине
+            val topicIds = Topics.select { Topics.disciplineId eq disciplineId }.map { it[Topics.id] }
+
+            // Ищем тесты, привязанные к этим топикам, ИЛИ к лекциям этих топиков
+            // (Упрощение: считаем все попытки этого юзера, фильтруем по topicId)
+
+            // Для диплома: SQL запрос для получения оценок студента по конкретной дисциплине
+            val sql = """
+                SELECT ta.score, ta.attempted_at
+                FROM test_attempts ta
+                JOIN tests t ON ta.test_id = t.test_id
+                LEFT JOIN topics top ON t.topic_id = top.topic_id
+                LEFT JOIN lectures l ON t.lecture_id = l.lecture_id
+                LEFT JOIN topics top_l ON l.topic_id = top_l.topic_id
+                WHERE ta.user_id = ? 
+                AND (top.discipline_id = ? OR top_l.discipline_id = ?)
+                ORDER BY ta.attempted_at ASC
+            """.trimIndent()
+
+            val scores = mutableListOf<Int>()
+
+            val stmt = (connection.connection as java.sql.Connection).prepareStatement(sql)
+            stmt.setInt(1, studentId)
+            stmt.setInt(2, disciplineId)
+            stmt.setInt(3, disciplineId)
+            val rs = stmt.executeQuery()
+            while (rs.next()) {
+                scores.add(rs.getInt("score"))
+            }
+            stmt.close()
+
+            // 4. Математика
+            val average = if (scores.isNotEmpty()) scores.average() else 0.0
+            val trend = calculateTrendSimple(scores) // Локальная функция расчета
+
+            // 5. Кластеризация (Risk Logic)
+            val risk = when {
+                average >= 80 && trend >= -0.5 -> RiskLevel.GREEN
+                average < 50 || trend < -2.0 -> RiskLevel.RED // Двойка или резкое падение
+                else -> RiskLevel.YELLOW
+            }
+
+            result.add(StudentRiskDto(studentId, email, average, trend, risk))
+        }
+
+        // Сортируем: сначала Красные (проблемные), потом Желтые, потом Зеленые
+        result.sortedByDescending { it.riskLevel } // RED > YELLOW > GREEN (по enum ordinal)
+    }
+
+    // Вспомогательная функция МНК (Метод Наименьших Квадратов) для списка чисел
+    private fun calculateTrendSimple(scores: List<Int>): Double {
+        if (scores.size < 2) return 0.0
+        val n = scores.size.toDouble()
+        var sumX = 0.0
+        var sumY = 0.0
+        var sumXY = 0.0
+        var sumX2 = 0.0
+
+        scores.forEachIndexed { index, score ->
+            val x = index.toDouble()
+            val y = score.toDouble()
+            sumX += x; sumY += y; sumXY += x * y; sumX2 += x * x
+        }
+        val denominator = n * sumX2 - sumX * sumX
+        return if (denominator == 0.0) 0.0 else (n * sumXY - sumX * sumY) / denominator
+    }
+
 }
