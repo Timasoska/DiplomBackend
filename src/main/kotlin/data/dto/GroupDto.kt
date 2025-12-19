@@ -40,3 +40,6 @@ enum class RiskLevel {
     YELLOW,  // Внимание (Средний балл, стагнация)
     RED      // Тревога (Низкий балл или резкое падение)
 }
+
+@Serializable
+data class UpdateGroupRequest(val name: String)

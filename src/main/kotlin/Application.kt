@@ -15,8 +15,6 @@ import org.example.features.analytics.analyticsRouting
 import org.example.features.content.groupRouting
 import org.example.plugins.configureDatabases
 import org.example.plugins.configureSecurity
-import org.jetbrains.exposed.sql.insert
-import org.jetbrains.exposed.sql.selectAll
 import org.koin.ktor.plugin.Koin
 
 fun main(args: Array<String>) {
@@ -44,8 +42,7 @@ fun Application.module() {
         authRouting()
         testingRouting()
         analyticsRouting()
-
-        adminRouting() // <--- Подключаем админку
-        groupRouting() // <--- ДОБАВИТЬ ЭТУ СТРОКУ!
+        adminRouting()
+        groupRouting()
     }
 }

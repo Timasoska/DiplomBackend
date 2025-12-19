@@ -19,6 +19,7 @@ import io.ktor.server.auth.jwt.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import org.example.core.math.LinearRegression
 import java.util.*
 
 /**
@@ -409,6 +410,10 @@ class ContentRepositoryImpl : ContentRepository {
     }
 
     override suspend fun getFullProgress(userId: Int): ProgressDto = dbQuery {
+        val groups = (StudentGroups innerJoin GroupMembers)
+            .slice(StudentGroups.name)
+            .select { GroupMembers.userId eq userId }
+            .map { it[StudentGroups.name] }
         val globalSql = "WITH ordered_attempts AS (SELECT CAST(score AS FLOAT) as score_float, CAST(ROW_NUMBER() OVER (ORDER BY attempted_at) AS FLOAT) as rn FROM test_attempts WHERE user_id = ?) SELECT COUNT(*) as total_count, COALESCE(AVG(score_float), 0) as avg_score, COALESCE(REGR_SLOPE(score_float, rn), 0) as trend FROM ordered_attempts;"
         var totalTests = 0; var totalAvg = 0.0; var totalTrend = 0.0
         execPattern(globalSql, listOf(userId)) { rs -> if (rs.next()) { totalTests = rs.getInt("total_count"); totalAvg = rs.getDouble("avg_score"); totalTrend = rs.getDouble("trend") } }
@@ -425,7 +430,7 @@ class ContentRepositoryImpl : ContentRepository {
         while (rsHistory.next()) history.add(rsHistory.getInt("score"))
         stmtHistory.close()
 
-        ProgressDto(totalTests, String.format("%.1f", totalAvg).replace(',', '.').toDouble(), String.format("%.2f", totalTrend).replace(',', '.').toDouble(), disciplinesStats, history)
+        ProgressDto(totalTests, String.format("%.1f", totalAvg).replace(',', '.').toDouble(), String.format("%.2f", totalTrend).replace(',', '.').toDouble(), disciplinesStats, history,groups = groups)
     }
 
     private fun <T> Transaction.execPattern(sql: String, params: List<Any>, transform: (ResultSet) -> T): T? {
@@ -689,7 +694,8 @@ class ContentRepositoryImpl : ContentRepository {
 
             // 4. Математика
             val average = if (scores.isNotEmpty()) scores.average() else 0.0
-            val trend = calculateTrendSimple(scores) // Локальная функция расчета
+            val trend = LinearRegression.calculateTrend(scores)
+            //val trend = calculateTrendSimple(scores) // Локальная функция расчета
 
             // 5. Кластеризация (Risk Logic)
             val risk = when {
@@ -721,6 +727,28 @@ class ContentRepositoryImpl : ContentRepository {
         }
         val denominator = n * sumX2 - sumX * sumX
         return if (denominator == 0.0) 0.0 else (n * sumXY - sumX * sumY) / denominator
+    }
+
+    override suspend fun updateGroup(groupId: Int, name: String) = dbQuery {
+        StudentGroups.update({ StudentGroups.id eq groupId }) {
+            it[StudentGroups.name] = name
+        }
+        Unit
+    }
+
+    override suspend fun deleteGroup(groupId: Int) = dbQuery {
+        // Сначала удаляем студентов из группы (связи)
+        GroupMembers.deleteWhere { GroupMembers.groupId eq groupId }
+        // Потом саму группу
+        StudentGroups.deleteWhere { StudentGroups.id eq groupId }
+        Unit
+    }
+
+    override suspend fun removeStudentFromGroup(groupId: Int, studentId: Int) = dbQuery {
+        GroupMembers.deleteWhere {
+            (GroupMembers.groupId eq groupId) and (GroupMembers.userId eq studentId)
+        }
+        Unit
     }
 
 }

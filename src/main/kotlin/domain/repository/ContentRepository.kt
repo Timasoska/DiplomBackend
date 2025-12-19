@@ -49,4 +49,9 @@ interface ContentRepository {
     suspend fun getTeacherGroups(teacherId: Int): List<TeacherGroupDto>
     suspend fun getGroupRiskAnalytics(groupId: Int): List<StudentRiskDto>
 
+    suspend fun updateGroup(groupId: Int, name: String)
+    suspend fun deleteGroup(groupId: Int)
+    suspend fun removeStudentFromGroup(groupId: Int, studentId: Int)
+
+
 }

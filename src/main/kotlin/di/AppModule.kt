@@ -11,45 +11,52 @@ import org.example.features.auth.security.TokenService
 import org.koin.dsl.module
 
 val appModule = module {
-    // Auth
+    // Infrastructure & Services
     single<AuthRepository> { AuthRepositoryImpl() }
+    single<ContentRepository> { ContentRepositoryImpl() }
     single { PasswordService() }
     single { TokenService() }
-    single<ContentRepository> { ContentRepositoryImpl() } // Если еще не было
+    single { DocumentService() }
 
-
+    // Auth UseCases
     factory { RegisterUseCase(get(), get(), get()) }
     factory { LoginUseCase(get(), get(), get()) }
 
-    // Content
-    single<ContentRepository> { ContentRepositoryImpl() }
+    // Content & Learning UseCases
     factory { GetDisciplinesUseCase(get()) }
-    factory { GetTopicsUseCase(get()) } // <--- Добавили
-    factory { GetLectureUseCase(get()) } // <--- Добавили
+    factory { GetTopicsUseCase(get()) }
+    factory { GetLectureUseCase(get()) }
     factory { FavoritesUseCase(get()) }
     factory { SearchUseCase(get()) }
-    factory { GetTestUseCase(get()) }
-    factory { SubmitTestUseCase(get()) }
-    factory { GetRecommendationsUseCase(get()) }
-    factory { GetProgressUseCase(get()) }
-    factory { GetProgressUseCase(get()) } // <--- ВОТ ЭТО ВАЖНО
-    factory { GetLeaderboardUseCase(get()) } // <--- Добавили
-    // Добавляем этот UseCase
     factory { LectureProgressUseCase(get()) }
     factory { ImportContentUseCase(get()) }
 
-    // --- ДЛЯ WORD ИМПОРТА ---
-    single { DocumentService() } // Сервис как синглтон
+    // Testing UseCases
+    factory { GetTestUseCase(get()) }
+    factory { GetTestByLectureUseCase(get()) }
+    factory { SubmitTestUseCase(get()) }
+    factory { SaveTestUseCase(get()) }
+    factory { GetAdminTestUseCase(get()) }
+
+    // Management UseCases (Teacher)
     factory { UploadLectureUseCase(get()) }
     factory { UpdateLectureUseCase(get()) }
     factory { DeleteLectureUseCase(get()) }
-    factory { SaveTestUseCase(get()) }
-    factory { GetAdminTestUseCase(get()) } // <--- Добавить
-    factory { GetTestByLectureUseCase(get()) }
     factory { SaveTopicUseCase(get()) }
-    factory { UpdateTopicUseCase(get()) } // <--- Добавить
-    factory { DeleteTopicUseCase(get()) } // <--- Добавить
-    factory { GroupUseCase(get()) }
+    factory { UpdateTopicUseCase(get()) }
+    factory { DeleteTopicUseCase(get()) }
 
+    // Groups & Analytics UseCases
+    factory { CreateGroupUseCase(get()) }
+    factory { JoinGroupUseCase(get()) }
+    factory { GetTeacherGroupsUseCase(get()) }
+    factory { GetAnalyticsUseCase(get()) }
+    factory { UpdateGroupUseCase(get()) }
+    factory { DeleteGroupUseCase(get()) }
+    factory { RemoveStudentUseCase(get()) }
 
+    // Analytics (Student)
+    factory { GetRecommendationsUseCase(get()) }
+    factory { GetProgressUseCase(get()) }
+    factory { GetLeaderboardUseCase(get()) }
 }
