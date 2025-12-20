@@ -177,3 +177,21 @@ object FlashcardProgress : Table("flashcard_progress") {
 
     override val primaryKey = PrimaryKey(userId, questionId)
 }
+
+object UserEngagement : Table("user_engagement") {
+    val userId = integer("user_id").references(Users.id)
+
+    // Текущий стрик (дней подряд)
+    val streak = integer("streak").default(0)
+
+    // Дата последней активности (чтобы считать стрик)
+    val lastActivityDate = varchar("last_activity_date", 20).nullable() // Храним как "YYYY-MM-DD"
+
+    // Опыт за СЕГОДНЯ (сбрасывается каждый день)
+    val todayXp = integer("today_xp").default(0)
+
+    // Общий опыт за все время (для глобального рейтинга)
+    val totalXp = integer("total_xp").default(0)
+
+    override val primaryKey = PrimaryKey(userId)
+}

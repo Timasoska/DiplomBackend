@@ -27,10 +27,11 @@ fun Application.configureDatabases() {
             Users, Disciplines, Topics, Lectures,
             Tests, Questions, Answers, TestAttempts, UserFavorites,
             LectureProgress,
-            LectureFiles,       // <--- ВОТ ЭТО
+            LectureFiles,
             StudentGroups,
             GroupMembers,
-            FlashcardProgress // <--- ДОБАВЛЕНА НОВАЯ ТАБЛИЦА
+            FlashcardProgress,
+            UserEngagement,
         )
     }
 }

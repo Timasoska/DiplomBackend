@@ -64,4 +64,8 @@ interface ContentRepository {
     // --- FLASHCARDS (Spaced Repetition) ---
     suspend fun getDueFlashcards(userId: Int): List<FlashcardDto>
     suspend fun saveFlashcardReview(userId: Int, questionId: Int, quality: Int)
+
+    // --- GAMIFICATION ---
+    suspend fun getEngagementStatus(userId: Int): EngagementStatusDto
+    suspend fun addXp(userId: Int, amount: Int)
 }

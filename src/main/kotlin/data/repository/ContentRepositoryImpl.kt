@@ -906,4 +906,85 @@ class ContentRepositoryImpl : ContentRepository {
             options = answers
         )
     }
+
+    override suspend fun getEngagementStatus(userId: Int): EngagementStatusDto = dbQuery {
+        checkAndResetDaily(userId) // Сначала проверяем, не наступил ли новый день
+
+        val row = UserEngagement.select { UserEngagement.userId eq userId }.singleOrNull()
+
+        // Если записи нет - создаем дефолтную
+        if (row == null) {
+            UserEngagement.insert { it[UserEngagement.userId] = userId }
+            return@dbQuery EngagementStatusDto(0, 0, 100, 0, false)
+        }
+
+        val todayXp = row[UserEngagement.todayXp]
+        EngagementStatusDto(
+            streak = row[UserEngagement.streak],
+            todayXp = todayXp,
+            totalXp = row[UserEngagement.totalXp],
+            isDailyGoalReached = todayXp >= 100
+        )
+    }
+
+    override suspend fun addXp(userId: Int, amount: Int) = dbQuery {
+        val today = java.time.LocalDate.now().toString()
+        val row = UserEngagement.select { UserEngagement.userId eq userId }.singleOrNull()
+
+        if (row == null) {
+            // Первая активность юзера вообще
+            UserEngagement.insert {
+                it[UserEngagement.userId] = userId
+                it[streak] = 1
+                it[lastActivityDate] = today
+                it[todayXp] = amount
+                it[totalXp] = amount
+            }
+        } else {
+            val lastDateStr = row[UserEngagement.lastActivityDate]
+            val currentStreak = row[UserEngagement.streak]
+            var newStreak = currentStreak
+
+            // Логика Стриков
+            if (lastDateStr != today) {
+                val lastDate = if (lastDateStr != null) java.time.LocalDate.parse(lastDateStr) else null
+                val yesterday = java.time.LocalDate.now().minusDays(1)
+
+                if (lastDate != null && lastDate.isEqual(yesterday)) {
+                    // Был вчера -> увеличиваем стрик
+                    newStreak += 1
+                } else {
+                    // Пропустил день или больше -> сброс до 1
+                    newStreak = 1
+                }
+
+                // Наступил новый день -> сбрасываем todayXp (если checkAndResetDaily не сработал раньше)
+                UserEngagement.update({ UserEngagement.userId eq userId }) {
+                    it[UserEngagement.todayXp] = 0
+                }
+            }
+
+            UserEngagement.update({ UserEngagement.userId eq userId }) {
+                it[streak] = newStreak
+                it[lastActivityDate] = today
+                with(SqlExpressionBuilder) {
+                    it.update(todayXp, todayXp + amount)
+                    it.update(totalXp, totalXp + amount)
+                }
+            }
+        }
+        Unit
+    }
+
+    // Вспомогательный метод для сброса ежедневного XP при чтении, если день сменился
+    private fun checkAndResetDaily(userId: Int) {
+        val today = java.time.LocalDate.now().toString()
+        val row = UserEngagement.select { UserEngagement.userId eq userId }.singleOrNull() ?: return
+
+        if (row[UserEngagement.lastActivityDate] != today) {
+            UserEngagement.update({ UserEngagement.userId eq userId }) {
+                it[todayXp] = 0 // Новый день - опыт с нуля
+            }
+        }
+    }
 }
