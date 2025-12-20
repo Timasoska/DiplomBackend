@@ -582,17 +582,17 @@ class ContentRepositoryImpl : ContentRepository {
     }
 
     override suspend fun createGroup(teacherId: Int, disciplineId: Int, name: String): String = dbQuery {
-        // Генерируем простой уникальный код (например, 6 символов)
         val code = UUID.randomUUID().toString().substring(0, 6).uppercase()
-
         StudentGroups.insert {
             it[StudentGroups.teacherId] = teacherId
             it[StudentGroups.disciplineId] = disciplineId
             it[StudentGroups.name] = name
             it[StudentGroups.inviteCode] = code
         }
+        println("[GROUP_MGMT] Teacher $teacherId created group '$name' with code $code")
         code
     }
+
 
     override suspend fun joinGroup(studentId: Int, inviteCode: String): Result<Unit> = dbQuery {
         val group = StudentGroups.select { StudentGroups.inviteCode eq inviteCode }.singleOrNull()
@@ -749,6 +749,14 @@ class ContentRepositoryImpl : ContentRepository {
             (GroupMembers.groupId eq groupId) and (GroupMembers.userId eq studentId)
         }
         Unit
+    }
+
+    override suspend fun getGroupMembers(groupId: Int): List<String> = dbQuery {
+        println("[GROUP_MGMT] Fetching member list for group $groupId")
+        (Users innerJoin GroupMembers)
+            .slice(Users.email)
+            .select { GroupMembers.groupId eq groupId }
+            .map { it[Users.email] }
     }
 
 }

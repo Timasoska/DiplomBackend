@@ -25,9 +25,17 @@ fun Route.groupRouting() {
     val updateGroupUseCase by inject<UpdateGroupUseCase>()
     val deleteGroupUseCase by inject<DeleteGroupUseCase>()
     val removeStudentUseCase by inject<RemoveStudentUseCase>()
+    val contentRepository by inject<org.example.domain.repository.ContentRepository>()
 
     authenticate("auth-jwt") {
         route("/api/groups") {
+
+            // СТУДЕНТ: Список участников группы
+            get("/{id}/members") {
+                val groupId = call.parameters["id"]?.toIntOrNull() ?: return@get call.respond(HttpStatusCode.BadRequest)
+                val members = contentRepository.getGroupMembers(groupId)
+                call.respond(members)
+            }
 
             // СТУДЕНТ: Вступить в группу
             post("/join") {
