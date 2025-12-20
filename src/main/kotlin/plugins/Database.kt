@@ -29,7 +29,8 @@ fun Application.configureDatabases() {
             LectureProgress,
             LectureFiles,       // <--- ВОТ ЭТО
             StudentGroups,
-            GroupMembers
+            GroupMembers,
+            FlashcardProgress // <--- ДОБАВЛЕНА НОВАЯ ТАБЛИЦА
         )
     }
 }

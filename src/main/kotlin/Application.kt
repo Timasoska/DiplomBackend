@@ -13,6 +13,7 @@ import org.example.features.content.contentRouting
 import org.example.features.testing.testingRouting
 import org.example.features.analytics.analyticsRouting
 import org.example.features.content.groupRouting
+import org.example.features.flashcards.flashcardRouting
 import org.example.plugins.configureDatabases
 import org.example.plugins.configureSecurity
 import org.koin.ktor.plugin.Koin
@@ -44,5 +45,6 @@ fun Application.module() {
         analyticsRouting()
         adminRouting()
         groupRouting()
+        flashcardRouting() // <--- ДОБАВЛЕНО
     }
 }

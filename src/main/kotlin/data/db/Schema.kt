@@ -157,3 +157,23 @@ object GroupMembers : Table("group_members") {
 
     override val primaryKey = PrimaryKey(userId, groupId)
 }
+
+// --- НОВАЯ ТАБЛИЦА ДЛЯ ИНТЕРВАЛЬНЫХ ПОВТОРЕНИЙ ---
+object FlashcardProgress : Table("flashcard_progress") {
+    val userId = integer("user_id").references(Users.id)
+    val questionId = integer("question_id").references(Questions.id)
+
+    // Когда показывать карточку в следующий раз
+    val nextReviewAt = datetime("next_review_at").clientDefault { LocalDateTime.now() }
+
+    // Текущий интервал (в днях)
+    val interval = integer("interval").default(0)
+
+    // Фактор легкости (Ease Factor, старт с 2.5 по SM-2)
+    val easeFactor = float("ease_factor").default(2.5f)
+
+    // Количество повторений подряд
+    val repetitions = integer("repetitions").default(0)
+
+    override val primaryKey = PrimaryKey(userId, questionId)
+}

@@ -60,4 +60,8 @@ interface ContentRepository {
     suspend fun getDisciplineDetails(userId: Int, disciplineId: Int): List<TopicStatDto>
     suspend fun getStudentDetailedReport(studentId: Int, disciplineId: Int): StudentDetailedReportDto
     suspend fun getDisciplineIdByGroupId(groupId: Int): Int?
+
+    // --- FLASHCARDS (Spaced Repetition) ---
+    suspend fun getDueFlashcards(userId: Int): List<FlashcardDto>
+    suspend fun saveFlashcardReview(userId: Int, questionId: Int, quality: Int)
 }

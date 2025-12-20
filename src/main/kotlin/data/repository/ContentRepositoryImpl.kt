@@ -20,6 +20,7 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.example.core.math.LinearRegression
+import org.example.core.math.SpacedRepetition
 import java.util.*
 
 /**
@@ -809,5 +810,100 @@ class ContentRepositoryImpl : ContentRepository {
             .slice(StudentGroups.disciplineId)
             .select { StudentGroups.id eq groupId }
             .singleOrNull()?.get(StudentGroups.disciplineId)
+    }
+
+    override suspend fun getDueFlashcards(userId: Int): List<FlashcardDto> = dbQuery {
+        val now = LocalDateTime.now()
+        val limit = 10 // Ограничиваем сессию 10 карточками
+
+        // 1. Карточки, которые ПОРА повторять (Due)
+        val dueCards = (FlashcardProgress innerJoin Questions)
+            .select {
+                (FlashcardProgress.userId eq userId) and
+                        (FlashcardProgress.nextReviewAt lessEq now)
+            }
+            .limit(limit)
+            .map { row ->
+                mapToFlashcardDto(row)
+            }
+
+        // 2. Если карточек мало, добавляем НОВЫЕ (New)
+        // Выбираем вопросы, которых НЕТ в таблице прогресса для этого юзера
+        val newCards = mutableListOf<FlashcardDto>()
+        if (dueCards.size < limit) {
+            val remaining = limit - dueCards.size
+
+            // Подзапрос: ID вопросов, которые уже есть у юзера
+            val userQuestions = FlashcardProgress
+                .slice(FlashcardProgress.questionId)
+                .select { FlashcardProgress.userId eq userId }
+
+            val newRows = Questions
+                .select { Questions.id notInSubQuery userQuestions }
+                .limit(remaining)
+
+            newRows.forEach { row ->
+                // Для новых вопросов нам нужно подгрузить варианты ответов
+                val qId = row[Questions.id]
+                val answers = Answers.select { Answers.questionId eq qId }
+                    .map { FlashcardOptionDto(it[Answers.id], it[Answers.answerText]) }
+
+                newCards.add(FlashcardDto(qId, row[Questions.questionText], answers))
+            }
+        }
+
+        (dueCards + newCards).shuffled() // Перемешиваем, чтобы было интереснее
+    }
+
+    override suspend fun saveFlashcardReview(userId: Int, questionId: Int, quality: Int) = dbQuery {
+        // 1. Ищем текущий прогресс
+        val currentProgress = FlashcardProgress.select {
+            (FlashcardProgress.userId eq userId) and (FlashcardProgress.questionId eq questionId)
+        }.singleOrNull()
+
+        // 2. Берем старые параметры или дефолтные
+        val prevInterval = currentProgress?.get(FlashcardProgress.interval) ?: 0
+        val prevEf = currentProgress?.get(FlashcardProgress.easeFactor) ?: 2.5f
+        val prevReps = currentProgress?.get(FlashcardProgress.repetitions) ?: 0
+
+        // 3. Считаем математику (SM-2)
+        val result = SpacedRepetition.calculate(quality, prevInterval, prevEf, prevReps)
+
+        println("🧠 [SM-2] User $userId, Question $questionId | Quality: $quality -> Next: ${result.nextReviewDate} (Interval: ${result.newInterval}d)")
+
+        // 4. Сохраняем (Upsert - обновление или вставка)
+        if (currentProgress != null) {
+            FlashcardProgress.update({ (FlashcardProgress.userId eq userId) and (FlashcardProgress.questionId eq questionId) }) {
+                it[nextReviewAt] = result.nextReviewDate
+                it[interval] = result.newInterval
+                it[easeFactor] = result.newEaseFactor
+                it[repetitions] = result.repetitions
+            }
+        } else {
+            FlashcardProgress.insert {
+                it[FlashcardProgress.userId] = userId
+                it[FlashcardProgress.questionId] = questionId
+                it[nextReviewAt] = result.nextReviewDate
+                it[interval] = result.newInterval
+                it[easeFactor] = result.newEaseFactor
+                it[repetitions] = result.repetitions
+            }
+        }
+        Unit
+    }
+
+    // Вспомогательный метод для маппинга
+    private fun mapToFlashcardDto(row: ResultRow): FlashcardDto {
+        val qId = row[Questions.id]
+        // ВНИМАНИЕ: Внутри dbQuery можно делать вложенные запросы, но лучше джойнить.
+        // Для простоты кода ВКР сделаем отдельный запрос ответов, т.к. нагрузка небольшая.
+        val answers = Answers.select { Answers.questionId eq qId }
+            .map { FlashcardOptionDto(it[Answers.id], it[Answers.answerText]) }
+
+        return FlashcardDto(
+            questionId = qId,
+            text = row[Questions.questionText],
+            options = answers
+        )
     }
 }
