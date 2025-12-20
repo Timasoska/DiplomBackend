@@ -54,5 +54,4 @@ interface ContentRepository {
     /**
      * Получает список email участников группы (для студентов).
      */
-    suspend fun getGroupMembers(groupId: Int): List<String>
-}
+    suspend fun getGroupMembers(groupId: Int): List<String>}

@@ -411,9 +411,9 @@ class ContentRepositoryImpl : ContentRepository {
 
     override suspend fun getFullProgress(userId: Int): ProgressDto = dbQuery {
         val groups = (StudentGroups innerJoin GroupMembers)
-            .slice(StudentGroups.name)
+            .slice(StudentGroups.id, StudentGroups.name)
             .select { GroupMembers.userId eq userId }
-            .map { it[StudentGroups.name] }
+            .map { UserGroupShortDto(it[StudentGroups.id], it[StudentGroups.name]) }
         val globalSql = "WITH ordered_attempts AS (SELECT CAST(score AS FLOAT) as score_float, CAST(ROW_NUMBER() OVER (ORDER BY attempted_at) AS FLOAT) as rn FROM test_attempts WHERE user_id = ?) SELECT COUNT(*) as total_count, COALESCE(AVG(score_float), 0) as avg_score, COALESCE(REGR_SLOPE(score_float, rn), 0) as trend FROM ordered_attempts;"
         var totalTests = 0; var totalAvg = 0.0; var totalTrend = 0.0
         execPattern(globalSql, listOf(userId)) { rs -> if (rs.next()) { totalTests = rs.getInt("total_count"); totalAvg = rs.getDouble("avg_score"); totalTrend = rs.getDouble("trend") } }
@@ -430,7 +430,7 @@ class ContentRepositoryImpl : ContentRepository {
         while (rsHistory.next()) history.add(rsHistory.getInt("score"))
         stmtHistory.close()
 
-        ProgressDto(totalTests, String.format("%.1f", totalAvg).replace(',', '.').toDouble(), String.format("%.2f", totalTrend).replace(',', '.').toDouble(), disciplinesStats, history,groups = groups)
+        ProgressDto(totalTests, String.format("%.1f", totalAvg).toDouble(), totalTrend, disciplinesStats, history, groups = groups)
     }
 
     private fun <T> Transaction.execPattern(sql: String, params: List<Any>, transform: (ResultSet) -> T): T? {

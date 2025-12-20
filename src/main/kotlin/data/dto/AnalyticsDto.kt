@@ -3,13 +3,16 @@ package org.example.data.dto
 import kotlinx.serialization.Serializable
 
 @Serializable
+data class UserGroupShortDto(val id: Int, val name: String) // Новая DTO
+
+@Serializable
 data class ProgressDto(
     val testsPassed: Int,
     val averageScore: Double,
     val trend: Double,
-    val disciplines: List<DisciplineStatDto> = emptyList(), // <--- Новый список
-    val history: List<Int> = emptyList(), // <--- Массив оценок для графика (например: [0, 50, 60, 90])
-    val groups: List<String> = emptyList() // Список названий групп: ["Юристы-101", ...]
+    val disciplines: List<DisciplineStatDto> = emptyList(),
+    val history: List<Int> = emptyList(),
+    val groups: List<UserGroupShortDto> = emptyList() // Теперь список объектов
 )
 
 @Serializable
