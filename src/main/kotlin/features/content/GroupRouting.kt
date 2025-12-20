@@ -13,28 +13,66 @@ import org.example.data.dto.JoinGroupRequest
 import org.example.data.dto.UpdateGroupRequest
 import org.example.domain.usecase.*
 import org.koin.ktor.ext.inject
+import org.example.domain.repository.ContentRepository
 
+
+/**
+ * Роутинг для управления группами и получения аналитики.
+ * Реализует функционал как для преподавателей (управление, отчеты),
+ * так и для студентов (вступление, список участников).
+ */
 fun Route.groupRouting() {
-    // Инжектим каждый UseCase отдельно
     val createGroupUseCase by inject<CreateGroupUseCase>()
     val joinGroupUseCase by inject<JoinGroupUseCase>()
     val getTeacherGroupsUseCase by inject<GetTeacherGroupsUseCase>()
     val getAnalyticsUseCase by inject<GetAnalyticsUseCase>()
-
-    // Новые инжекты
     val updateGroupUseCase by inject<UpdateGroupUseCase>()
     val deleteGroupUseCase by inject<DeleteGroupUseCase>()
     val removeStudentUseCase by inject<RemoveStudentUseCase>()
-    val contentRepository by inject<org.example.domain.repository.ContentRepository>()
+    val contentRepository by inject<ContentRepository>()
 
     authenticate("auth-jwt") {
         route("/api/groups") {
 
+            // --- ДЕТАЛЬНЫЙ ОТЧЕТ ПО СТУДЕНТУ (Deep Analytics) ---
+            get("/{groupId}/student/{studentId}/report") {
+                val principal = call.principal<JWTPrincipal>()
+                val role = principal?.payload?.getClaim("role")?.asString()
+
+                // Проверка прав доступа
+                if (role != "teacher") {
+                    println("🚫 [AUTH] Access denied to report for role: $role")
+                    return@get call.respond(HttpStatusCode.Forbidden, "Access Denied: Teachers only")
+                }
+
+                val groupId = call.parameters["groupId"]?.toIntOrNull() ?: return@get call.respond(HttpStatusCode.BadRequest)
+                val studentId = call.parameters["studentId"]?.toIntOrNull() ?: return@get call.respond(HttpStatusCode.BadRequest)
+
+                println("🔍 [DEBUG] Teacher is requesting report for student $studentId in group $groupId")
+
+                try {
+                    // Используем метод репозитория (внутри которого есть dbQuery),
+                    // чтобы избежать ошибки "No transaction in context"
+                    val disciplineId = contentRepository.getDisciplineIdByGroupId(groupId)
+                        ?: return@get call.respond(HttpStatusCode.NotFound, "Group or Discipline not found")
+
+                    val report = contentRepository.getStudentDetailedReport(studentId, disciplineId)
+                    call.respond(HttpStatusCode.OK, report)
+                } catch (e: Exception) {
+                    println("🔥 [API ERROR] Failed to build student report: ${e.message}")
+                    call.respond(HttpStatusCode.InternalServerError, e.localizedMessage ?: "Internal Server Error")
+                }
+            }
+
             // СТУДЕНТ: Список участников группы
             get("/{id}/members") {
                 val groupId = call.parameters["id"]?.toIntOrNull() ?: return@get call.respond(HttpStatusCode.BadRequest)
-                val members = contentRepository.getGroupMembers(groupId)
-                call.respond(members)
+                try {
+                    val members = contentRepository.getGroupMembers(groupId)
+                    call.respond(members)
+                } catch (e: Exception) {
+                    call.respond(HttpStatusCode.InternalServerError, "Error fetching members")
+                }
             }
 
             // СТУДЕНТ: Вступить в группу
@@ -50,7 +88,7 @@ fun Route.groupRouting() {
                 if (result.isSuccess) {
                     call.respond(HttpStatusCode.OK, "Joined successfully")
                 } else {
-                    call.respond(HttpStatusCode.NotFound, "Group not found or already joined")
+                    call.respond(HttpStatusCode.NotFound, result.exceptionOrNull()?.message ?: "Group not found")
                 }
             }
 
@@ -80,7 +118,7 @@ fun Route.groupRouting() {
                 call.respond(groups)
             }
 
-            // УЧИТЕЛЬ: Аналитика по группе
+            // УЧИТЕЛЬ: Аналитика рисков по группе
             get("/{id}/analytics") {
                 val principal = call.principal<JWTPrincipal>()
                 val role = principal?.payload?.getClaim("role")?.asString()
@@ -93,9 +131,7 @@ fun Route.groupRouting() {
                 call.respond(analytics)
             }
 
-            // --- НОВЫЕ МЕТОДЫ ---
-
-            // 1. Изменить название группы
+            // УЧИТЕЛЬ: Изменить название группы
             put("/{id}") {
                 val principal = call.principal<JWTPrincipal>()
                 val role = principal?.payload?.getClaim("role")?.asString()
@@ -105,11 +141,10 @@ fun Route.groupRouting() {
                 val request = call.receive<UpdateGroupRequest>()
 
                 updateGroupUseCase.updateGroup(id, request.name)
-
                 call.respond(HttpStatusCode.OK)
             }
 
-            // 2. Удалить группу
+            // УЧИТЕЛЬ: Удалить группу
             delete("/{id}") {
                 val principal = call.principal<JWTPrincipal>()
                 val role = principal?.payload?.getClaim("role")?.asString()
@@ -121,7 +156,7 @@ fun Route.groupRouting() {
                 call.respond(HttpStatusCode.OK)
             }
 
-            // 3. Удалить студента из группы
+            // УЧИТЕЛЬ: Удалить студента из группы
             delete("/{groupId}/students/{studentId}") {
                 val principal = call.principal<JWTPrincipal>()
                 val role = principal?.payload?.getClaim("role")?.asString()

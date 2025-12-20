@@ -759,4 +759,69 @@ class ContentRepositoryImpl : ContentRepository {
             .map { it[Users.email] }
     }
 
+    override suspend fun getDisciplineDetails(userId: Int, disciplineId: Int): List<TopicStatDto> = dbQuery {
+        val topicList = Topics.select { Topics.disciplineId eq disciplineId }.map { it[Topics.id] to it[Topics.name] }
+        val jdbcConnection = (connection.connection as java.sql.Connection)
+
+        topicList.map { (topicId, topicName) ->
+            val sql = """
+                SELECT 
+                    COALESCE(AVG(ta.score), 0) as avg_score, 
+                    COUNT(ta.attempt_id) as attempts_count,
+                    (SELECT score FROM test_attempts 
+                     WHERE user_id = ? AND test_id IN (SELECT test_id FROM tests WHERE topic_id = ?)
+                     ORDER BY attempted_at DESC LIMIT 1) as last_score
+                FROM test_attempts ta
+                JOIN tests t ON ta.test_id = t.test_id
+                WHERE ta.user_id = ? AND t.topic_id = ?
+            """.trimIndent()
+
+            var avg = 0.0; var count = 0; var last: Int? = null
+            val stmt = jdbcConnection.prepareStatement(sql)
+            stmt.setInt(1, userId); stmt.setInt(2, topicId); stmt.setInt(3, userId); stmt.setInt(4, topicId)
+            val rs = stmt.executeQuery()
+            if (rs.next()) { avg = rs.getDouble("avg_score"); count = rs.getInt("attempts_count"); last = rs.getObject("last_score") as? Int }
+            stmt.close()
+            TopicStatDto(topicId, topicName, avg, count, last)
+        }
+    }
+
+    override suspend fun getStudentDetailedReport(studentId: Int, disciplineId: Int): StudentDetailedReportDto = dbQuery {
+        println("📊 [REPORT] Building report for Student $studentId, Discipline $disciplineId")
+        val email = Users.slice(Users.email).select { Users.id eq studentId }.singleOrNull()?.get(Users.email) ?: "Unknown"
+
+        val sqlStats = """
+            WITH ordered_attempts AS (
+                SELECT CAST(ta.score AS FLOAT) as score_float, 
+                       CAST(ROW_NUMBER() OVER (ORDER BY ta.attempted_at) AS FLOAT) as rn
+                FROM test_attempts ta
+                JOIN tests t ON ta.test_id = t.test_id
+                JOIN topics top ON t.topic_id = top.topic_id
+                WHERE ta.user_id = ? AND top.discipline_id = ?
+            )
+            SELECT COALESCE(AVG(score_float), 0) as avg_score, COALESCE(REGR_SLOPE(score_float, rn), 0) as trend 
+            FROM ordered_attempts
+        """.trimIndent()
+
+        var overallAvg = 0.0; var overallTrend = 0.0
+        val jdbcConnection = (connection.connection as java.sql.Connection)
+        val stmtStats = jdbcConnection.prepareStatement(sqlStats)
+        stmtStats.setInt(1, studentId); stmtStats.setInt(2, disciplineId)
+        val rsStats = stmtStats.executeQuery()
+        if (rsStats.next()) { overallAvg = rsStats.getDouble("avg_score"); overallTrend = rsStats.getDouble("trend") }
+        stmtStats.close()
+
+        val history = TestAttempts.slice(TestAttempts.score).select { TestAttempts.userId eq studentId }.orderBy(TestAttempts.attemptedAt to SortOrder.DESC).limit(10).map { it[TestAttempts.score] }
+        val topicStats = getDisciplineDetails(studentId, disciplineId)
+
+        StudentDetailedReportDto(email, overallAvg, overallTrend, topicStats, history)
+    }
+
+    override suspend fun getDisciplineIdByGroupId(groupId: Int): Int? = dbQuery {
+        println("🔍 [DB] Finding Discipline ID for Group $groupId")
+        StudentGroups
+            .slice(StudentGroups.disciplineId)
+            .select { StudentGroups.id eq groupId }
+            .singleOrNull()?.get(StudentGroups.disciplineId)
+    }
 }

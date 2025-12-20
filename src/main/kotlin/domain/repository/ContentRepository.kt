@@ -54,4 +54,10 @@ interface ContentRepository {
     /**
      * Получает список email участников группы (для студентов).
      */
-    suspend fun getGroupMembers(groupId: Int): List<String>}
+    suspend fun getGroupMembers(groupId: Int): List<String>
+
+    // --- НОВЫЕ МЕТОДЫ ГЛУБОКОЙ АНАЛИТИКИ ---
+    suspend fun getDisciplineDetails(userId: Int, disciplineId: Int): List<TopicStatDto>
+    suspend fun getStudentDetailedReport(studentId: Int, disciplineId: Int): StudentDetailedReportDto
+    suspend fun getDisciplineIdByGroupId(groupId: Int): Int?
+}

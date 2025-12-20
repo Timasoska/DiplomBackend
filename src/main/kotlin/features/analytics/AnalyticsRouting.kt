@@ -1,10 +1,12 @@
 package org.example.features.analytics
 
+import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import org.example.domain.repository.ContentRepository
 import org.example.domain.usecase.GetLeaderboardUseCase
 import org.example.domain.usecase.GetProgressUseCase
 import org.example.domain.usecase.GetRecommendationsUseCase
@@ -14,6 +16,7 @@ fun Route.analyticsRouting() {
     val getProgressUseCase by inject<GetProgressUseCase>()
     val getRecommendationsUseCase by inject<GetRecommendationsUseCase>()
     val getLeaderboardUseCase by inject<GetLeaderboardUseCase>()
+    val contentRepository by inject<ContentRepository>()
 
     authenticate("auth-jwt") {
         route("/api/analytics") {
@@ -47,6 +50,15 @@ fun Route.analyticsRouting() {
             get("/leaderboard") {
                 val leaderboard = getLeaderboardUseCase()
                 call.respond(leaderboard)
+            }
+
+            get("/discipline/{id}/details") {
+                val principal = call.principal<JWTPrincipal>()
+                val userId = principal?.payload?.getClaim("id")?.asInt()!!
+                val discId = call.parameters["id"]?.toIntOrNull() ?: return@get call.respond(HttpStatusCode.BadRequest)
+
+                val details = contentRepository.getDisciplineDetails(userId, discId)
+                call.respond(details)
             }
 
         }

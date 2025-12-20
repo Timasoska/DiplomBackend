@@ -29,3 +29,21 @@ data class LeaderboardItemDto(
     val score: Double, // Рейтинг
     val testsPassed: Int // Сколько прошел
 )
+
+@Serializable
+data class TopicStatDto(
+    val topicId: Int,
+    val topicName: String,
+    val averageScore: Double,
+    val attemptsCount: Int,
+    val lastScore: Int?
+)
+
+@Serializable
+data class StudentDetailedReportDto(
+    val email: String,
+    val overallAverage: Double,
+    val overallTrend: Double,
+    val topics: List<TopicStatDto>,
+    val attemptHistory: List<Int>
+)
