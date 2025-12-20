@@ -639,13 +639,10 @@ class ContentRepositoryImpl : ContentRepository {
      * 4. Присваивает статус (Green/Yellow/Red).
      */
     override suspend fun getGroupRiskAnalytics(groupId: Int): List<StudentRiskDto> = dbQuery {
-        // 1. Узнаем дисциплину группы
         val disciplineId = StudentGroups.slice(StudentGroups.disciplineId)
             .select { StudentGroups.id eq groupId }
-            .singleOrNull()
-            ?.get(StudentGroups.disciplineId) ?: return@dbQuery emptyList()
+            .singleOrNull()?.get(StudentGroups.disciplineId) ?: return@dbQuery emptyList()
 
-        // 2. Получаем список студентов
         val students = (Users innerJoin GroupMembers)
             .slice(Users.id, Users.email)
             .select { GroupMembers.groupId eq groupId }
@@ -654,22 +651,8 @@ class ContentRepositoryImpl : ContentRepository {
         val result = mutableListOf<StudentRiskDto>()
 
         for ((studentId, email) in students) {
-            // 3. Выбираем попытки тестов ТОЛЬКО по этой дисциплине
-            // Join: TestAttempts -> Tests -> Topics (где disciplineId совпадает)
-            // Учитываем и тесты лекций, и тесты тем
-
-            // Сложный запрос через API Exposed или через Raw SQL.
-            // Для надежности используем логику фильтрации в коде (так как данных не миллионы).
-
-            // Получаем все ID тестов, относящихся к этой дисциплине
-            val topicIds = Topics.select { Topics.disciplineId eq disciplineId }.map { it[Topics.id] }
-
-            // Ищем тесты, привязанные к этим топикам, ИЛИ к лекциям этих топиков
-            // (Упрощение: считаем все попытки этого юзера, фильтруем по topicId)
-
-            // Для диплома: SQL запрос для получения оценок студента по конкретной дисциплине
             val sql = """
-                SELECT ta.score, ta.attempted_at
+                SELECT ta.score 
                 FROM test_attempts ta
                 JOIN tests t ON ta.test_id = t.test_id
                 LEFT JOIN topics top ON t.topic_id = top.topic_id
@@ -681,34 +664,37 @@ class ContentRepositoryImpl : ContentRepository {
             """.trimIndent()
 
             val scores = mutableListOf<Int>()
-
-            val stmt = (connection.connection as java.sql.Connection).prepareStatement(sql)
-            stmt.setInt(1, studentId)
-            stmt.setInt(2, disciplineId)
-            stmt.setInt(3, disciplineId)
+            val jdbcConnection = (connection.connection as java.sql.Connection)
+            val stmt = jdbcConnection.prepareStatement(sql)
+            stmt.setInt(1, studentId); stmt.setInt(2, disciplineId); stmt.setInt(3, disciplineId)
             val rs = stmt.executeQuery()
-            while (rs.next()) {
-                scores.add(rs.getInt("score"))
-            }
+            while (rs.next()) scores.add(rs.getInt("score"))
             stmt.close()
 
-            // 4. Математика
             val average = if (scores.isNotEmpty()) scores.average() else 0.0
             val trend = LinearRegression.calculateTrend(scores)
-            //val trend = calculateTrendSimple(scores) // Локальная функция расчета
+            val testsDone = scores.size
 
-            // 5. Кластеризация (Risk Logic)
+            // --- АДАПТИВНАЯ ЛОГИКА КЛАСТЕРИЗАЦИИ ---
             val risk = when {
+                // Если тестов вообще нет — Желтый (статус Inactive)
+                testsDone == 0 -> RiskLevel.YELLOW
+
+                // Красный: Плохие оценки или резкое падение (независимо от количества тестов)
+                average < 50 || trend < -2.0 -> RiskLevel.RED
+
+                // Зеленый: Только если балл высокий и пройдено хотя бы что-то
                 average >= 80 && trend >= -0.5 -> RiskLevel.GREEN
-                average < 50 || trend < -2.0 -> RiskLevel.RED // Двойка или резкое падение
+
+                // Все остальное (балл 50-80) — Желтый
                 else -> RiskLevel.YELLOW
             }
 
+            println("📊 [ANALYTICS] student: $email | score: ${"%.1f".format(average)} | tests: $testsDone | risk: $risk")
             result.add(StudentRiskDto(studentId, email, average, trend, risk))
         }
 
-        // Сортируем: сначала Красные (проблемные), потом Желтые, потом Зеленые
-        result.sortedByDescending { it.riskLevel } // RED > YELLOW > GREEN (по enum ordinal)
+        result.sortedByDescending { it.riskLevel }
     }
 
     // Вспомогательная функция МНК (Метод Наименьших Квадратов) для списка чисел
