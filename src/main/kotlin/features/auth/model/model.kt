@@ -6,7 +6,8 @@ import kotlinx.serialization.Serializable
 data class RegisterRequest(
     val email: String,
     val password: String,
-    val inviteCode: String? = null // Если ввести спец код - станешь учителем
+    val name: String, // <--- Добавили
+    val inviteCode: String? = null
 )
 
 @Serializable

@@ -15,17 +15,13 @@ class RegisterUseCase(
     private val TEACHER_INVITE_CODE = "TEACHER2025"
 
     suspend operator fun invoke(request: RegisterRequest): AuthResponse? {
-        // Определяем роль
         val role = if (request.inviteCode == TEACHER_INVITE_CODE) "teacher" else "student"
-
         val passwordHash = passwordService.hash(request.password)
 
-        // Передаем роль в репозиторий
-        val userId = repository.createUser(request.email, passwordHash, role) ?: return null
+        // Передаем request.name
+        val userId = repository.createUser(request.email, passwordHash, role, request.name) ?: return null
 
-        // Генерируем токен с ролью
         val token = tokenService.generate(userId, request.email, role)
-
         return AuthResponse(token, role)
     }
 }

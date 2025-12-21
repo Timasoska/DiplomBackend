@@ -8,10 +8,8 @@ object Users : Table("users") {
     val id = integer("user_id").autoIncrement()
     val email = varchar("email", 128).uniqueIndex()
     val passwordHash = varchar("password_hash", 256)
-    // --- НОВОЕ ПОЛЕ ---
-    // Роли: "student" или "teacher"
+    val name = varchar("name", 255).default("User")
     val role = varchar("role", 20).default("student")
-    // ------------------
     val createdAt = datetime("created_at").clientDefault { LocalDateTime.now() }
 
     override val primaryKey = PrimaryKey(id)
