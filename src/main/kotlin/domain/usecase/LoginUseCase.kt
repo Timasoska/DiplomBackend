@@ -18,9 +18,9 @@ class LoginUseCase(
             return null
         }
 
-        // Генерируем токен, используя роль из БД
         val token = tokenService.generate(user.id, user.email, user.role)
 
-        return AuthResponse(token, user.role)
+        // Возвращаем сохраненное в БД имя
+        return AuthResponse(token, user.role, user.name)
     }
 }

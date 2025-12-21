@@ -25,9 +25,10 @@ data class DisciplineStatDto(
 
 @Serializable
 data class LeaderboardItemDto(
-    val email: String, // Имя пользователя (пока у нас только email)
-    val score: Double, // Рейтинг
-    val testsPassed: Int // Сколько прошел
+    val email: String,
+    val name: String, // <--- НОВОЕ ПОЛЕ
+    val score: Double,
+    val testsPassed: Int
 )
 
 @Serializable

@@ -391,13 +391,22 @@ class ContentRepositoryImpl : ContentRepository {
     }
 
     override suspend fun getLeaderboard(): List<LeaderboardItemDto> = dbQuery {
-        val sql = "SELECT u.email, COUNT(ta.test_id) as tests_count, COALESCE(AVG(ta.score), 0) as avg_score FROM users u JOIN test_attempts ta ON u.user_id = ta.user_id GROUP BY u.user_id, u.email ORDER BY (COUNT(ta.test_id) * AVG(ta.score)) DESC LIMIT 10;"
+        // Добавили u.name в выборку
+        val sql = "SELECT u.email, u.name, COUNT(ta.test_id) as tests_count, COALESCE(AVG(ta.score), 0) as avg_score FROM users u JOIN test_attempts ta ON u.user_id = ta.user_id GROUP BY u.user_id, u.email, u.name ORDER BY (COUNT(ta.test_id) * AVG(ta.score)) DESC LIMIT 10;"
+
         val leaderboard = mutableListOf<LeaderboardItemDto>()
         val jdbcConnection = (connection.connection as Connection)
         val stmt = jdbcConnection.prepareStatement(sql)
         val rs = stmt.executeQuery()
         while (rs.next()) {
-            leaderboard.add(LeaderboardItemDto(rs.getString("email"), String.format("%.1f", rs.getDouble("avg_score") * rs.getInt("tests_count")).replace(',', '.').toDouble(), rs.getInt("tests_count")))
+            leaderboard.add(
+                LeaderboardItemDto(
+                    email = rs.getString("email"),
+                    name = rs.getString("name"), // Читаем имя из БД
+                    score = String.format("%.1f", rs.getDouble("avg_score") * rs.getInt("tests_count")).replace(',', '.').toDouble(),
+                    testsPassed = rs.getInt("tests_count")
+                )
+            )
         }
         stmt.close()
         leaderboard

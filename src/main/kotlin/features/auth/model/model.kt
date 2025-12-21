@@ -6,7 +6,8 @@ import kotlinx.serialization.Serializable
 data class RegisterRequest(
     val email: String,
     val password: String,
-    val inviteCode: String? = null // Если ввести спец код - станешь учителем
+    val name: String,
+    val inviteCode: String? = null
 )
 
 @Serializable
@@ -18,5 +19,6 @@ data class LoginRequest(
 @Serializable
 data class AuthResponse(
     val token: String,
-    val role: String // Возвращаем роль клиенту, чтобы он знал, какой UI рисовать
+    val role: String,
+    val name: String // <--- НОВОЕ ПОЛЕ: Чтобы клиент знал свое имя
 )
