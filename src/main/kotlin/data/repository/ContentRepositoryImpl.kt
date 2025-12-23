@@ -852,10 +852,15 @@ class ContentRepositoryImpl : ContentRepository {
                 .limit(remaining)
 
             newRows.forEach { row ->
-                // Для новых вопросов нам нужно подгрузить варианты ответов
                 val qId = row[Questions.id]
                 val answers = Answers.select { Answers.questionId eq qId }
-                    .map { FlashcardOptionDto(it[Answers.id], it[Answers.answerText]) }
+                    .map {
+                        FlashcardOptionDto(
+                            id = it[Answers.id],
+                            text = it[Answers.answerText],
+                            isCorrect = it[Answers.isCorrect] // <--- ВАЖНО: Добавлено
+                        )
+                    }
 
                 newCards.add(FlashcardDto(qId, row[Questions.questionText], answers))
             }
@@ -904,10 +909,14 @@ class ContentRepositoryImpl : ContentRepository {
     // Вспомогательный метод для маппинга
     private fun mapToFlashcardDto(row: ResultRow): FlashcardDto {
         val qId = row[Questions.id]
-        // ВНИМАНИЕ: Внутри dbQuery можно делать вложенные запросы, но лучше джойнить.
-        // Для простоты кода ВКР сделаем отдельный запрос ответов, т.к. нагрузка небольшая.
         val answers = Answers.select { Answers.questionId eq qId }
-            .map { FlashcardOptionDto(it[Answers.id], it[Answers.answerText]) }
+            .map {
+                FlashcardOptionDto(
+                    id = it[Answers.id],
+                    text = it[Answers.answerText],
+                    isCorrect = it[Answers.isCorrect] // <--- ВАЖНО: Добавлено
+                )
+            }
 
         return FlashcardDto(
             questionId = qId,

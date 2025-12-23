@@ -36,7 +36,7 @@ fun Application.module() {
 
     // Заполнение базы данными
     launch {
-        org.example.data.loader.ContentLoader.loadFromResources()
+        org.example.data.loader.ContentLoader.loadAllContent()
     }
 
     routing {
