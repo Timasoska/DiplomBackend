@@ -15,6 +15,8 @@ object ContentLoader {
         "land_law7-10.json",
         "land_law11-14.json",
         "land_law15-20.json",
+        "civil_law.json",
+        "civil_law6-10.json",
     )
 
     fun loadAllContent() {
